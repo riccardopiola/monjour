@@ -2,14 +2,14 @@ import pandas as pd
 from typing import IO
 
 from monjour.core.account import Account
-from monjour.core.importer import importer, Importer
+from monjour.core.importer import importer, Importer, ImportContext
 from monjour.core.archive import ArchiveID
 from monjour.core.common import DateRange
 
 import monjour.providers.generic.csv_importer as csv_importer
 from monjour.providers.paypal.paypal_types import PaypalTransactionType
 
-def combine_date_hour(df: pd.DataFrame) -> pd.DataFrame:
+def combine_date_hour(df: pd.DataFrame, _ctx: ImportContext) -> pd.DataFrame:
     df['date'] = pd.to_datetime(df['paypal_date'] + ' ' + df['paypal_time'])
     return df
 
@@ -31,7 +31,7 @@ paypal_cast_columns = csv_importer.cast_columns({
 })
 
 def map_paypal_transaction_type(transaction_type_mapping: dict[str, str]):
-    def middleware(df: pd.DataFrame) -> pd.DataFrame:
+    def middleware(df: pd.DataFrame, _ctx: ImportContext) -> pd.DataFrame:
         df['paypal_transaction_type'] = df['paypal_desc']\
             .map(transaction_type_mapping)\
             .fillna(PaypalTransactionType.UNKNOWN.value)
@@ -43,16 +43,16 @@ class PayPalImporter(Importer):
 
     def import_file(
         self,
-        archive_id: ArchiveID,
+        ctx: ImportContext,
         file: IO[bytes],
-        date_range: DateRange|None=None
     ) -> pd.DataFrame:
         df = pd.read_csv(file)
 
         # Apply middlewares
-        df = csv_importer.add_archive_id(df, archive_id)
-        df = csv_importer.add_empty_category_column(df)
-        df = csv_importer.create_deterministic_index(df, archive_id)
-        df = paypal_cast_columns(df)
+        df = csv_importer.add_archive_id(df, ctx)
+        df = csv_importer.add_empty_category_column(df, ctx)
+        df = csv_importer.create_deterministic_index(df, ctx)
+        df = paypal_cast_columns(df, ctx)
+        df = csv_importer.remove_useless_columns(df, ctx)
 
         return df

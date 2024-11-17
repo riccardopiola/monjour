@@ -7,6 +7,21 @@ if TYPE_CHECKING:
 
 from monjour.core.archive import Archive, DateRange, ArchiveID
 
+class ImportContext:
+    account: "Account"
+    archive: Archive
+    archive_id: ArchiveID
+    date_range: DateRange
+    extra: dict
+
+    def __init__(self, account: "Account", archive: Archive, archive_id: ArchiveID,
+                 date_range: DateRange,extra: dict = {}):
+        self.account = account
+        self.archive = archive
+        self.archive_id = archive_id
+        self.date_range = date_range
+        self.extra = extra
+
 class InvalidFileError(Exception):
     pass
 
@@ -34,9 +49,8 @@ class Importer(ABC):
 
     def import_file(
         self,
-        archive_id: ArchiveID,
+        ctx: ImportContext,
         file: IO[bytes],
-        date_range: DateRange|None=None
     ) -> pd.DataFrame:
         """
         Archive a new file using the provided archiver and return the archive_id.
@@ -51,9 +65,8 @@ class Importer(ABC):
 
     def try_import_file(
         self,
-        archive_id: ArchiveID,
+        ctx: ImportContext,
         file: IO[bytes],
-        date_range: DateRange|None=None
     ) -> pd.DataFrame:
         """
         Try to import a file and return the archive_id if successful.

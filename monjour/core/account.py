@@ -7,7 +7,7 @@ import monjour.core.log as log
 from monjour.core.archive import Archive, ArchiveID
 from monjour.core.common import DateRange
 from monjour.core.config import Config
-from monjour.core.importer import Importer
+from monjour.core.importer import ImportContext, Importer
 from monjour.core.merge import MergeContext, MergerFn
 
 # Columns that will always be present in the Account DataFrame
@@ -155,7 +155,8 @@ class Account(ABC):
         importer = self.importer
         with open(file, 'rb') as f:
             archive_id = archive.calculate_archive_id(self.id, date_range)
-            df = importer.import_file(archive_id, f, date_range)
+            import_context = ImportContext(self, archive, archive_id, date_range)
+            df = importer.import_file(import_context, f)
 
         # Register with the archive that we are using an external file
         archive.register_file(self.id, importer.name, importer.version, date_range, file)
@@ -166,7 +167,8 @@ class Account(ABC):
         # Use the importer to read the file into a dataframe
         importer = self.importer
         archive_id = archive.calculate_archive_id(self.id, date_range)
-        df = importer.import_file(archive_id, buffer, date_range)
+        import_context = ImportContext(self, archive, archive_id, date_range)
+        df = importer.import_file(import_context, buffer)
 
         # Save the file in the archive
         ext = filename.split('.')[-1]
@@ -187,7 +189,8 @@ class Account(ABC):
         # Use the importer to read the file into a dataframe
         date_range = archive.get_date_range(archive_id)
         buf = archive.load_file(archive_id, check_hash=check_hash)
-        df = self.importer.import_file(archive_id, buf, date_range)
+        import_context = ImportContext(self, archive, archive_id, date_range)
+        df = self.importer.import_file(import_context, buf)
         # Merge the new data into the account
         self.data = pd.concat([self.data, df])
 
@@ -201,7 +204,8 @@ class Account(ABC):
         for record in archive_records:
             date_range = DateRange(record['date_start'], record['date_end'])
             buf = archive.load_file(record['id'], check_hash=check_hash)
-            df = self.importer.import_file(record['id'], buf, date_range)
+            import_context = ImportContext(self, archive, record['id'], date_range)
+            df = self.importer.import_file(import_context, buf)
             dfs.append(df)
 
         # Merge all the new data into the account

@@ -7,16 +7,16 @@ import monjour.providers.generic.csv_importer as csv_importer
 from monjour.providers.unicredit.unic_categories import UnicreditCategory
 from monjour.providers.unicredit.unic_account import Unicredit
 
-def add_currency_info(df: pd.DataFrame, account: "Account") -> pd.DataFrame:
+def add_currency_info(df: pd.DataFrame, ctx: ImportContext) -> pd.DataFrame:
     """
     Create a new column 'currency' in the dataframe with the currency of the sheet
     """
-    if not isinstance(account, Unicredit):
-        raise ValueError(f'Expected account type Unicredit, got {type(account).__name__}')
-    df['currency'] = account.currency
+    if not isinstance(ctx.account, Unicredit):
+        raise ValueError(f'Expected account type Unicredit, got {type(ctx.account).__name__}')
+    df['currency'] = ctx.account.currency
     return df
 
-def add_unicredit_category(df: pd.DataFrame) -> pd.DataFrame:
+def add_unicredit_category(df: pd.DataFrame, _ctx: ImportContext) -> pd.DataFrame:
 
     def process_row(row):
         d = row['unicredit_desc']
@@ -141,20 +141,19 @@ class UnicreditImporter(Importer):
 
     def import_file(
         self,
-        archive_id: ArchiveID,
+        ctx: ImportContext,
         file: IO[bytes],
-        date_range: DateRange|None=None
     ) -> pd.DataFrame:
         df = pd.read_csv(file, sep=';', decimal=',', thousands='.',
             parse_dates=['Data Registrazione', 'Data valuta'], dayfirst=True)
 
-        df = csv_importer.add_archive_id(df, archive_id)
-        df = csv_importer.add_empty_category_column(df)
-        df = csv_importer.create_deterministic_index(df, archive_id)
-        df = csv_importer.rename_columns(UNICREDIT_IT_COLUMN_MAPPING)(df)
-        df = csv_importer.cast_columns(UNICREDIT_IT_COLUMN_DTYPES)(df)
-        df = add_currency_info(df, self.account)
-        df = add_unicredit_category(df)
-        df = csv_importer.remove_useless_columns(df, self.account)
+        df = csv_importer.add_archive_id(df, ctx)
+        df = csv_importer.add_empty_category_column(df, ctx)
+        df = csv_importer.create_deterministic_index(df, ctx)
+        df = csv_importer.rename_columns(UNICREDIT_IT_COLUMN_MAPPING)(df, ctx)
+        df = csv_importer.cast_columns(UNICREDIT_IT_COLUMN_DTYPES)(df, ctx)
+        df = add_currency_info(df, ctx)
+        df = add_unicredit_category(df, ctx)
+        df = csv_importer.remove_useless_columns(df, ctx)
 
         return df

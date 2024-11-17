@@ -44,20 +44,19 @@ TRANSACTION_TYPE_MAPPING = {
 class PayPalImporter(Importer):
     def import_file(
         self,
-        archive_id: ArchiveID,
+        ctx: ImportContext,
         file: IO[bytes],
-        date_range: DateRange|None=None
     ) -> pd.DataFrame:
         df = pd.read_csv(file, decimal=',')
 
-        df = csv_importer.add_archive_id(df, archive_id)
-        df = csv_importer.add_empty_category_column(df)
-        df = csv_importer.create_deterministic_index(df, archive_id)
-        df = csv_importer.rename_columns(COLUMN_MAPPING)(df)
-        df = paypal_common.paypal_cast_columns(df)
-        df = paypal_common.combine_date_hour(df)
-        df = paypal_common.map_paypal_transaction_type(TRANSACTION_TYPE_MAPPING)(df)
-        df = csv_importer.remove_useless_columns(df, self.account)
+        df = csv_importer.add_archive_id(df, ctx)
+        df = csv_importer.add_empty_category_column(df, ctx)
+        df = csv_importer.create_deterministic_index(df, ctx)
+        df = csv_importer.rename_columns(COLUMN_MAPPING)(df, ctx)
+        df = paypal_common.paypal_cast_columns(df, ctx)
+        df = paypal_common.combine_date_hour(df, ctx)
+        df = paypal_common.map_paypal_transaction_type(TRANSACTION_TYPE_MAPPING)(df, ctx)
+        df = csv_importer.remove_useless_columns(df, ctx)
 
         return df
 
