@@ -8,7 +8,7 @@ from monjour.core.archive import Archive, DateRange, ArchiveID
 
 CsvMiddleware = Callable[[pd.DataFrame, Account, Archive, ArchiveID], pd.DataFrame]
 
-@importer(name='csv-importer', version='1.0')
+@importer(locale="*", v='1.0')
 class CSVImporter(Importer):
     """
     A generic CSV importer that loads a CSV file into a DataFrame and applies a list of middlewares.

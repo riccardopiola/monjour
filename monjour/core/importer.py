@@ -7,6 +7,29 @@ if TYPE_CHECKING:
 
 from monjour.core.archive import Archive, DateRange, ArchiveID
 
+class ImporterInfo:
+    id: str
+    supported_locale: str
+    version: str
+    importer_class_name: str
+    module: str|None
+    friendly_name: str|None
+
+    def __init__(self, locale: str, v: str, cls_name: str,
+                 module: str|None=None, friendly_name: str | None = None):
+        self.supported_locale = locale
+        self.version = v
+        self.importer_class_name = cls_name
+        self.module = module
+        self.friendly_name = friendly_name or f"{cls_name} {locale} v{v}"
+        self.id = f'{cls_name}_{locale}_v{v}'
+
+    def supports_locale(self, locale: str) -> bool:
+        return self.supported_locale == '*' or self.supported_locale == locale
+
+class InvalidFileError(Exception):
+    pass
+
 class ImportContext:
     account: "Account"
     archive: Archive
@@ -21,10 +44,6 @@ class ImportContext:
         self.archive_id = archive_id
         self.date_range = date_range
         self.extra = extra
-
-class InvalidFileError(Exception):
-    pass
-
 class Importer(ABC):
     """
     Base class for all Importers.
@@ -38,15 +57,12 @@ class Importer(ABC):
     """
 
     # To be defined by concrete classes
-    name: str
-    version: str
+    info: ImporterInfo
 
-    account: "Account"
-
-    def __init__(self, account: "Account"):
+    def __init__(self):
         super().__init__()
-        self.account = account
 
+    @abstractmethod
     def import_file(
         self,
         ctx: ImportContext,
@@ -85,18 +101,22 @@ class Importer(ABC):
         """
         raise NotImplementedError()
 
-def importer(name: str, version: str):
+def importer(locale: str, v: str, friendly_name: str | None = None):
     """
     Decorator for Importer classes.
     This decorator registers the decorated class as an Importer.
+
+    Args:
+        name:       Name of the importer.
+        version:    Version of the importer.
+        locale:     Locale supported by this importer. Use "*" to support all locales.
     """
     def decorator(cls):
         if not issubclass(cls, Importer):
             raise Exception('Only classes that inherit from Importer can be registered as Importers')
-        def __init__(self: Importer, account: "Account"):
-            Importer.__init__(self, account)
+        def __init__(self: Importer):
+            Importer.__init__(self)
         cls.__init__ = __init__
-        cls.name = name
-        cls.version = version
+        cls.info = ImporterInfo(locale, v, cls.__name__, cls.__module__, friendly_name=friendly_name)
         return cls
     return decorator

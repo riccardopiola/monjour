@@ -40,7 +40,7 @@ TRANSACTION_TYPE_MAPPING = {
     "Trasferimento avviato dall'utente":            PaypalTransactionType.USER_INITIATED_TRANSFER.value,
 }
 
-@importer(name='paypal-it_IT', version='1.0')
+@importer(v='1.0', locale="it_IT")
 class PayPalImporter(Importer):
     def import_file(
         self,
