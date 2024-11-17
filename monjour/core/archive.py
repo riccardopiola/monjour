@@ -10,6 +10,7 @@ from monjour.core.common import DateRange
 
 if TYPE_CHECKING:
     from monjour.core.config import Config
+    from monjour.core.importer import ImporterInfo
 
 ArchiveID: TypeAlias = str
 
@@ -19,8 +20,7 @@ class HashMismatchError(Exception):
 class ArchiveRecord(TypedDict):
     id: str
     imported_date: dt.datetime
-    importer_name: str
-    importer_version: str
+    importer_id: str
     account_id: str
     file_path: str
     file_hash: str
@@ -121,8 +121,7 @@ class Archive:
     def register_file(
         self,
         account_id: str,
-        importer_name: str,
-        importer_version: str,
+        importer_info: "ImporterInfo",
         date_range: DateRange,
         filepath: Path,
     ) -> ArchiveID:
@@ -144,15 +143,14 @@ class Archive:
         """
         with open(filepath, 'rb') as f:
             file_hash = Archive.calculate_file_hash(f)
-        archive_id = self._register_file(account_id, importer_name, importer_version, date_range,
+        archive_id = self._register_file(account_id, importer_info, date_range,
                                          str(filepath), file_hash, is_managed_by_archive=False)
         return archive_id
 
     def archive_file(
         self,
         account_id: str,
-        importer_name: str,
-        importer_version: str,
+        importer_info: "ImporterInfo",
         date_range: DateRange,
         file: IO[bytes],
         extension: str,
@@ -188,15 +186,14 @@ class Archive:
 
         # Note that we only pass filename to be saved in the 'file_path' field
         # The full path can be reconstructed by joining the archive_dir and the account_id
-        archive_id = self._register_file(account_id, importer_name, importer_version, date_range,
+        archive_id = self._register_file(account_id, importer_info, date_range,
                                             filename, file_hash, is_managed_by_archive=True)
         return archive_id
 
     def _register_file(
         self,
         account_id: str,
-        importer_name: str,
-        importer_version: str,
+        importer_info: "ImporterInfo",
         date_range: DateRange,
         filepath: str,
         file_hash: str,
@@ -218,8 +215,7 @@ class Archive:
         self.records[archive_id] = ArchiveRecord(
             id                = archive_id,
             imported_date     = dt.datetime.now(),
-            importer_name     = importer_name,
-            importer_version  = importer_version,
+            importer_id       = importer_info.id,
             account_id        = account_id,
             file_path         = filepath,
             file_hash         = file_hash,

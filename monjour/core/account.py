@@ -159,7 +159,7 @@ class Account(ABC):
             df = importer.import_file(import_context, f)
 
         # Register with the archive that we are using an external file
-        archive.register_file(self.id, importer.name, importer.version, date_range, file)
+        archive.register_file(self.id, importer.info, date_range, file)
         self.data = pd.concat([self.data, df])
 
     def archive_file(self, archive: Archive, buffer: IO[bytes],
@@ -172,7 +172,7 @@ class Account(ABC):
 
         # Save the file in the archive
         ext = filename.split('.')[-1]
-        archive.archive_file(self.id, importer.name, importer.version, date_range, buffer, ext)
+        archive.archive_file(self.id, importer.info, date_range, buffer, ext)
 
         # Merge the new data into the account
         self.data = pd.concat([self.data, df])

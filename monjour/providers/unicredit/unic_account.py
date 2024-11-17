@@ -48,8 +48,8 @@ class Unicredit(BankAccount):
     ##############################################
 
     def get_default_importer(self, locale: str|None) -> Importer:
-        from monjour.providers.unicredit.importers import get_importer_for_locale
-        return get_importer_for_locale(self, locale)
+        from monjour.providers.unicredit.importers import unic_locale_importer
+        return unic_locale_importer.load_first(with_locale=locale)()
 
     def get_default_merger(self) -> MergerFn:
         from monjour.providers.unicredit.unic_merger import merge_unicredit

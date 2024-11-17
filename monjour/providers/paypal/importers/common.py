@@ -38,7 +38,7 @@ def map_paypal_transaction_type(transaction_type_mapping: dict[str, str]):
         return df
     return middleware
 
-@importer(name='paypal-generic', version='1.0')
+@importer(v='1.0', locale="*")
 class PayPalImporter(Importer):
 
     def import_file(
