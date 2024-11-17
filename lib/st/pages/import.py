@@ -9,4 +9,4 @@ importer = st.selectbox('Select an importer', ['Amazon', 'eBay', 'PayPal'])
 file = st.file_uploader('Upload a file', type=['csv'], accept_multiple_files=True)
 
 if file:
-    
+    pass
