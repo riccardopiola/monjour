@@ -31,7 +31,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-# lib/
+# monjour/
 lib64/
 parts/
 sdist/

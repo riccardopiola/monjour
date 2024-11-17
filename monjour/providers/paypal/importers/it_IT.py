@@ -1,10 +1,10 @@
 import pandas as pd
 
-from lib.core.importer import *
+from monjour.core.importer import *
 
-from lib.providers.paypal.paypal_types import PaypalTransactionType
-import lib.providers.paypal.importers.common as paypal_common
-import lib.providers.generic.csv_importer as csv_importer
+from monjour.providers.paypal.paypal_types import PaypalTransactionType
+import monjour.providers.paypal.importers.common as paypal_common
+import monjour.providers.generic.csv_importer as csv_importer
 
 COLUMN_MAPPING = {
     'Data':                     'paypal_date',

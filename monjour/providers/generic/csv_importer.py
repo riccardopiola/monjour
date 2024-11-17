@@ -2,9 +2,9 @@ import pandas as pd
 from typing import IO, Callable, TypeVar
 from functools import wraps
 
-from lib.core.importer import Importer, importer
-from lib.core.account import Account
-from lib.core.archive import Archive, DateRange, ArchiveID
+from monjour.core.importer import Importer, importer
+from monjour.core.account import Account
+from monjour.core.archive import Archive, DateRange, ArchiveID
 
 CsvMiddleware = Callable[[pd.DataFrame, Account, Archive, ArchiveID], pd.DataFrame]
 

@@ -1,6 +1,6 @@
 import importlib
 import os
-from lib.app import App, DateRange
+from monjour.app import App, DateRange
 
 import streamlit as st
 

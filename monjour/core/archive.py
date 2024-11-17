@@ -5,11 +5,11 @@ import json
 from pathlib import Path
 from typing import IO, TypeAlias, TypedDict, TYPE_CHECKING
 
-import lib.core.log as log
-from lib.core.common import DateRange
+import monjour.core.log as log
+from monjour.core.common import DateRange
 
 if TYPE_CHECKING:
-    from lib.core.config import Config
+    from monjour.core.config import Config
 
 ArchiveID: TypeAlias = str
 

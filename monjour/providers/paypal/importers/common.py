@@ -1,13 +1,13 @@
 import pandas as pd
 from typing import IO
 
-from lib.core.account import Account
-from lib.core.importer import importer, Importer
-from lib.core.archive import ArchiveID
-from lib.core.common import DateRange
+from monjour.core.account import Account
+from monjour.core.importer import importer, Importer
+from monjour.core.archive import ArchiveID
+from monjour.core.common import DateRange
 
-import lib.providers.generic.csv_importer as csv_importer
-from lib.providers.paypal.paypal_types import PaypalTransactionType
+import monjour.providers.generic.csv_importer as csv_importer
+from monjour.providers.paypal.paypal_types import PaypalTransactionType
 
 def combine_date_hour(df: pd.DataFrame) -> pd.DataFrame:
     df['date'] = pd.to_datetime(df['paypal_date'] + ' ' + df['paypal_time'])

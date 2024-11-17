@@ -8,5 +8,5 @@ parser.add_argument('--console', action='store_true', help='Launch the separate 
 args = parser.parse_args()
 
 if args.streamlit:
-    from lib.st import st_main
+    from monjour.st import st_main
     st_main()

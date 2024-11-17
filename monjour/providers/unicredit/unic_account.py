@@ -1,12 +1,12 @@
 import pandas as pd
 
-from lib.core.account import BankAccount
-from lib.core.merge import MergerFn
-from lib.core.archive import Archive, ArchiveID
-from lib.core.config import Config
-from lib.core.importer import Importer
+from monjour.core.account import BankAccount
+from monjour.core.merge import MergerFn
+from monjour.core.archive import Archive, ArchiveID
+from monjour.core.config import Config
+from monjour.core.importer import Importer
 
-from lib.providers.unicredit.unic_categories import UnicreditCategory
+from monjour.providers.unicredit.unic_categories import UnicreditCategory
 
 class Unicredit(BankAccount):
     """
@@ -48,9 +48,9 @@ class Unicredit(BankAccount):
     ##############################################
 
     def get_default_importer(self, locale: str|None) -> Importer:
-        from lib.providers.unicredit.importers import get_importer_for_locale
+        from monjour.providers.unicredit.importers import get_importer_for_locale
         return get_importer_for_locale(self, locale)
 
     def get_default_merger(self) -> MergerFn:
-        from lib.providers.unicredit.unic_merger import merge_unicredit
+        from monjour.providers.unicredit.unic_merger import merge_unicredit
         return merge_unicredit

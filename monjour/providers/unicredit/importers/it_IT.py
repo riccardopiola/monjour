@@ -1,11 +1,11 @@
 import pandas as pd
 
-import lib.core.log as log
-from lib.core.importer import *
+import monjour.core.log as log
+from monjour.core.importer import *
 
-import lib.providers.generic.csv_importer as csv_importer
-from lib.providers.unicredit.unic_categories import UnicreditCategory
-from lib.providers.unicredit.unic_account import Unicredit
+import monjour.providers.generic.csv_importer as csv_importer
+from monjour.providers.unicredit.unic_categories import UnicreditCategory
+from monjour.providers.unicredit.unic_account import Unicredit
 
 def add_currency_info(df: pd.DataFrame, account: "Account") -> pd.DataFrame:
     """

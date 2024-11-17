@@ -2,7 +2,7 @@ import pandas as pd
 from typing import Callable, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from lib.core.account import Account
+    from monjour.core.account import Account
 
 class MergeContext:
     df: pd.DataFrame

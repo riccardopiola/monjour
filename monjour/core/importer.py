@@ -3,9 +3,9 @@ from abc import ABC, abstractmethod
 from typing import IO, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from lib.core.account import Account
+    from monjour.core.account import Account
 
-from lib.core.archive import Archive, DateRange, ArchiveID
+from monjour.core.archive import Archive, DateRange, ArchiveID
 
 class InvalidFileError(Exception):
     pass

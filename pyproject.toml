@@ -3,7 +3,7 @@ requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "my_module"
+name = "monjour"
 version = "0.1.0"
 description = "A sample Python package"
 readme = "README.md"

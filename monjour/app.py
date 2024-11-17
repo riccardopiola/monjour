@@ -2,13 +2,13 @@ from pathlib import Path
 from typing import Callable
 import pandas as pd
 
-import lib.core.log as log
-from lib.core.common import try_infer_daterange_from_filename, DateRange
-from lib.core.config import Config
-from lib.core.account import Account
-from lib.core.category import Category
-from lib.core.archive import Archive
-from lib.core.merge import MergeContext, MergerFn
+import monjour.core.log as log
+from monjour.core.common import try_infer_daterange_from_filename, DateRange
+from monjour.core.config import Config
+from monjour.core.account import Account
+from monjour.core.category import Category
+from monjour.core.archive import Archive
+from monjour.core.merge import MergeContext, MergerFn
 
 class App:
     config: Config
@@ -92,6 +92,7 @@ class App:
         ctx.to_merge = accounts_to_merge.copy()
         # Merge all the accounts in order
         for account in accounts_to_merge:
+            ctx.current_account = account
             # Let the account perform the merge
             if merge_fn:
                 ctx.df = merge_fn(ctx, account.data)

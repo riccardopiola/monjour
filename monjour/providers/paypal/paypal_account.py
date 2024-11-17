@@ -1,9 +1,9 @@
 import pandas as pd
 
-from lib.core.account import Account
-from lib.core.importer import Importer
+from monjour.core.account import Account
+from monjour.core.importer import Importer
 
-from lib.providers.paypal.paypal_types import PaypalTransactionType
+from monjour.providers.paypal.paypal_types import PaypalTransactionType
 
 class PayPal(Account):
     PROVIDER_ID = 'paypal'

@@ -3,12 +3,12 @@ from pathlib import Path
 from typing import IO, Callable
 import pandas as pd
 
-import lib.core.log as log
-from lib.core.archive import Archive, ArchiveID
-from lib.core.common import DateRange
-from lib.core.config import Config
-from lib.core.importer import Importer
-from lib.core.merge import MergeContext, MergerFn
+import monjour.core.log as log
+from monjour.core.archive import Archive, ArchiveID
+from monjour.core.common import DateRange
+from monjour.core.config import Config
+from monjour.core.importer import Importer
+from monjour.core.merge import MergeContext, MergerFn
 
 # Columns that will always be present in the Account DataFrame
 ACCOUNT_COLUMNS = {
