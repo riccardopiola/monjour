@@ -168,19 +168,19 @@ class Archive:
         file_hash = Archive.calculate_file_hash(file)
 
         # Calculate the new filename
-        filename = import_ctx.archive_id + "." + extension
-        filepath = Path(self.config.archive_dir) / import_ctx.account.id / filename
+        archive_path = f"{import_ctx.account.id}/{import_ctx.archive_id}.{extension}"
+        full_path = Path(self.config.archive_dir) / archive_path
 
         # Copy the file to the archive directory
-        filepath.parent.mkdir(parents=True, exist_ok=True)
-        with open(filepath, 'wb') as f:
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(full_path, 'wb') as f:
             file.seek(0)
             f.write(file.read())
-        log.info(f'File {filepath} copied to archive')
+        log.info(f"File '{archive_path}' copied to archive")
 
         # Note that we only pass filename to be saved in the 'file_path' field
         # The full path can be reconstructed by joining the archive_dir and the account_id
-        archive_id = self._register_file(import_ctx, date_range, filename, file_hash,
+        archive_id = self._register_file(import_ctx, date_range, archive_path, file_hash,
                                          is_managed_by_archive=True)
         return archive_id
 
@@ -217,7 +217,7 @@ class Archive:
             is_managed_by_archive= is_managed_by_archive,
         )
         self.save()
-        log.info(f'File {filepath} imported with id: {archive_id}')
+        log.info(f"File '{filepath}' imported with id: {archive_id}")
         return archive_id
 
     def _reimport_file(
@@ -244,7 +244,7 @@ class Archive:
         prev['file_path'] = filepath
 
         self.save()
-        log.info(f'File {import_ctx.archive_id} was re-imported')
+        log.info(f"File '{import_ctx.archive_id}' was re-imported")
         return import_ctx.archive_id
 
     ########################################################
@@ -271,7 +271,7 @@ class Archive:
         # Read file from disk
         if record['is_managed_by_archive']:
             # Records managed by the archive only save the file name in the 'file_path' field
-            file_path = Path(self.config.archive_dir) / record['account_id'] / record['file_path']
+            file_path = Path(self.config.archive_dir) / record['file_path']
         else:
             # Extenral records save the full path in the 'file_path' field
             file_path = Path(record['file_path'])
@@ -293,7 +293,7 @@ class Archive:
         file_path: Path = Path(self.config.archive_dir) / record['account_id'] / record['file_name'] # type: ignore
         file_path.unlink()
         self.records.pop(archive_id)
-        log.info(f'Forgotten file {archive_id}')
+        log.info(f"Forgotten file '{archive_id}'")
 
     ########################################################
     # Archive metadata management
@@ -307,10 +307,6 @@ class Archive:
         def custom_serializer(obj):
             if isinstance(obj, dt.datetime):
                 return obj.isoformat()  # Convert datetime to string
-            # FIXME: Streamlit date picker uses dt.date instead of dt.datetime
-            # maybe we should convert everything to dt.date?
-            elif isinstance(obj, dt.date):
-                return obj.isoformat()
             raise TypeError(f"Type {type(obj)} not serializable")
 
         path = filepath or self.archive_file_path
@@ -318,6 +314,7 @@ class Archive:
             'records': self.records,
             'archiver_version': self.version
         }
+        path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, 'w') as f:
             json.dump(archive_info, f, default=custom_serializer, indent=4)
 

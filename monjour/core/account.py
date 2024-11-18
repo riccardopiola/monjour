@@ -216,6 +216,7 @@ class Account(ABC):
         buf = archive.load_file(archive_id, check_hash=check_hash)
         import_context = ImportContext(self, archive, archive_id, date_range)
         df = self.importer.import_file(import_context, buf)
+        log.info(f"Loaded '{archive_id}' into account '{self.id}'")
         # Merge the new data into the account
         self.data = pd.concat([self.data, df])
 

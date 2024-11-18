@@ -23,9 +23,10 @@ class DateRange:
         """
         Create a DateRange representing a month of a specific year.
         """
+        end_month = month + 1 if month < 12 else 1
         return DateRange(
-            start=dt.datetime(year, month, 1),
-            end=dt.datetime(year, month + 1, 1) - dt.timedelta(days=1)
+            start = dt.datetime.combine(dt.date(year, month, 1), dt.time.min),
+            end = dt.datetime.combine(dt.date(year, end_month, 1), dt.time.max) - dt.timedelta(days=1)
         )
 
     @staticmethod
@@ -34,8 +35,8 @@ class DateRange:
         Create a DateRange representing a whole year.
         """
         return DateRange(
-            start=dt.datetime(year, 1, 1),
-            end=dt.datetime(year, 12, 31)
+            start=dt.datetime.combine(dt.date(year, 1, 1), dt.time.min),
+            end=dt.datetime.combine(dt.datetime(year, 12, 31), dt.time.max)
         )
 
     @staticmethod
@@ -44,10 +45,10 @@ class DateRange:
         Create a DateRange representing a range of dates.
         """
         if not end_inclusive:
-            end = end - dt.timedelta(days=1)
+            end = end - dt.timedelta(seconds=1)
         return DateRange(start=start, end=end)
 
-def try_infer_daterange_from_filename(filename: str) -> DateRange:
+def try_infer_daterange_from_filename(filename: str) -> DateRange|None:
     """
     Try to infer the date range from the filename.
     This function scans the filename for two dates in the format 'YYYY-MM-DD' and returns a DateRange object.
@@ -61,9 +62,10 @@ def try_infer_daterange_from_filename(filename: str) -> DateRange:
     Raises:
         ValueError: If the date range could not be inferred
     """
-    dates = []
-    for m in re.finditer(r'(\d{4})-(\d{2})-(\d{2})', filename):
-        dates.append(dt.datetime(int(m.group(1)), int(m.group(2)), int(m.group(3))))
-    if len(dates) != 2:
-        raise ValueError(f'Could not infer date range from filename {filename}')
-    return DateRange(dates[0], dates[1])
+    # Find two dates in the filename
+    matches = re.findall(r'\d{4}-\d{2}-\d{2}', filename)
+    if len(matches) != 2:
+        return None
+    start = dt.datetime.strptime(matches[0], '%Y-%m-%d')
+    end = dt.datetime.combine(dt.datetime.strptime(matches[1], '%Y-%m-%d'), dt.time.max)
+    return DateRange(start=start, end=end)

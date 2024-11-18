@@ -59,7 +59,10 @@ if account_id:
                     account_id,
                     file,
                     file.name,
-                    date_range=DateRange(start=date_range[0], end=date_range[1]), # type:ignore
+                    date_range=DateRange(
+                        dt.datetime.combine(date_range[0], dt.time.min), # type: ignore
+                        dt.datetime.combine(date_range[1], dt.time.max) # type: ignore
+                    ),
                 )
-            st.success('File imported successfully.')
+            st.success(f'File "{file.name}" imported successfully.')
             import_ctx.st_show_diagnostics()
