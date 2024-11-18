@@ -1,0 +1,41 @@
+import importlib
+import os
+from pathlib import Path
+
+from monjour.app import App, DateRange
+from monjour.st.st_app import StApp
+
+import streamlit as st
+
+mj_st_home = Path(os.path.dirname(__file__))
+
+st.session_state.project_dir = os.path.curdir
+st_app = StApp(st.session_state.project_dir)
+
+######################################
+# App setup
+######################################
+
+st_app.app.combine_accounts()
+
+######################################
+# Pages
+######################################
+
+home_page = st.Page(mj_st_home / 'pages' / 'home.py', title="Home")
+import_page = st.Page(mj_st_home / 'pages' / 'import.py', title="Import")
+
+# User defined pages
+user_pages = st_app.find_custom_st_pages()
+
+######################################
+# Layout that is shared between all pages
+######################################
+
+pg = st.navigation({
+    'General': [home_page],
+    'Import': [import_page],
+    **({} if len(user_pages) == 0 else { 'Custom Pages': user_pages })
+})
+
+pg.run()

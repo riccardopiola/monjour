@@ -1,9 +1,9 @@
 from pathlib import Path
-from typing import Callable
 import pandas as pd
+from typing import IO, Callable
 
 import monjour.core.log as log
-from monjour.core.common import try_infer_daterange_from_filename, DateRange
+from monjour.core.common import DateRange
 from monjour.core.config import Config
 from monjour.core.account import Account
 from monjour.core.category import Category
@@ -41,7 +41,12 @@ class App:
     # Run
     ##############################################
 
-    def import_file(self, account_id: str, file: str|Path, date_range: DateRange|None = None):
+    @property
+    def interactive(self):
+        from monjour.replay.app_interactive import AppInteractive
+        return AppInteractive(self)
+
+    def import_file(self, account_id: str, file: str|Path, date_range: DateRange|None):
         """
         Import a file into the account with the given ID.
 
@@ -56,9 +61,8 @@ class App:
         """
         if isinstance(file, str):
             file = Path(file)
-        if date_range is None:
-            date_range = try_infer_daterange_from_filename(file.name)
-        self.accounts[account_id].import_file(self.archive, file, date_range)
+        ctx = self.accounts[account_id].import_file(self.archive, file, date_range)
+        ctx.log_all_diagnostics()
 
     def combine_accounts(self, include: list[str] = [], exclude: list[str] = [], order: list[str] = [],
                          merge_fn: MergerFn|None = None):
@@ -101,6 +105,7 @@ class App:
             # Update the merge context
             ctx.to_merge.pop(0)
             ctx.merged.append(account)
+        ctx.log_all_diagnostics()
         return self.df
 
     def categorize(self):

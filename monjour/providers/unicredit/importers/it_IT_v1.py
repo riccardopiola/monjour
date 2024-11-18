@@ -1,4 +1,5 @@
 import pandas as pd
+from datetime import datetime
 
 import monjour.core.log as log
 from monjour.core.importer import *
@@ -157,3 +158,17 @@ class UnicreditImporter(Importer):
         df = csv_importer.remove_useless_columns(df, ctx)
 
         return df
+
+    def try_infer_daterange(
+        self,
+        file: IO[bytes],
+        filename: str|None=None,
+    ) -> DateRange | None:
+        df = pd.read_csv(file, sep=';', decimal=',', thousands='.', usecols=['Data valuta'],
+            parse_dates=['Data valuta'], dayfirst=True)
+        if 'Data valuta' not in df.columns:
+            return None
+        return DateRange(
+            df['Data valuta'].min().to_pydatetime(),
+            df['Data valuta'].max().to_pydatetime()
+        )

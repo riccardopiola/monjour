@@ -7,7 +7,7 @@ import monjour.core.log as log
 from monjour.core.archive import Archive, ArchiveID
 from monjour.core.common import DateRange
 from monjour.core.config import Config
-from monjour.core.importer import ImportContext, Importer
+from monjour.core.importer import ImportContext, Importer, ImporterInfo
 from monjour.core.merge import MergeContext, MergerFn
 
 # Columns that will always be present in the Account DataFrame
@@ -138,44 +138,69 @@ class Account(ABC):
         """
         ...
 
-    @abstractmethod
-    def get_default_importer(self, locale: str|None) -> Importer:
+    ##############################################
+    # Importer selection methods
+    # only get_default_importer is required to be implemented.
+    # Most accounts use the @with_locale_helper decorator automatically define those methods
+    # if they follow the convention of managin the importers with monjour.utils.LocaleImporter
+    ##############################################
+
+    def get_default_importer(self, locale: str|None=None) -> Importer:
         """
         Get the importer to use for the account based on the locale.
         If no importer is defined and no locale is provided, an exception will be raised.
         """
-        ...
+        raise NotImplementedError()
+
+    def set_importer(self, importer: Importer|str) -> Importer:
+        raise NotImplementedError()
+
+    def get_available_importers(self) -> list[ImporterInfo]:
+        return [self.importer.info]
+
 
     ##############################################
     # Importing (defers to the Importer)
     ##############################################
 
-    def import_file(self, archive: Archive, file: Path, date_range: DateRange):
-        # Use the importer to read the file into a dataframe
+    def import_file(self, archive: Archive, file: Path, date_range: DateRange|None) -> ImportContext:
+        # Calculate the archive ID and infer the date range
         importer = self.importer
+        if date_range is None:
+            date_range = self._infer_daterange_or_raise(importer, file, file.name)
+        archive_id, _ = archive.calculate_archive_id(self.id, date_range)
+
+        # Import the file
         with open(file, 'rb') as f:
-            archive_id = archive.calculate_archive_id(self.id, date_range)
             import_context = ImportContext(self, archive, archive_id, date_range)
             df = importer.import_file(import_context, f)
+            import_context.importer_id = importer.info.id
 
         # Register with the archive that we are using an external file
-        archive.register_file(self.id, importer.info, date_range, file)
+        archive.register_file(import_context, date_range, file)
         self.data = pd.concat([self.data, df])
+        return import_context
 
     def archive_file(self, archive: Archive, buffer: IO[bytes],
-                     filename: str, date_range: DateRange):
-        # Use the importer to read the file into a dataframe
+                     filename: str, date_range: DateRange|None) -> ImportContext:
+        # Calculate the archive ID and infer the date range
         importer = self.importer
-        archive_id = archive.calculate_archive_id(self.id, date_range)
+        if date_range is None:
+            date_range = self._infer_daterange_or_raise(importer, buffer, filename)
+        archive_id, _ = archive.calculate_archive_id(self.id, date_range)
+
+        # Import the file
         import_context = ImportContext(self, archive, archive_id, date_range)
         df = importer.import_file(import_context, buffer)
+        import_context.importer_id = importer.info.id
 
         # Save the file in the archive
         ext = filename.split('.')[-1]
-        archive.archive_file(self.id, importer.info, date_range, buffer, ext)
+        archive.archive_file(import_context, date_range, buffer, ext)
 
         # Merge the new data into the account
         self.data = pd.concat([self.data, df])
+        return import_context
 
     def load_from_archive(self, archive: Archive, archive_id: ArchiveID, check_hash=False):
         """
@@ -210,6 +235,16 @@ class Account(ABC):
 
         # Merge all the new data into the account
         self.data = pd.concat([self.data] + dfs)
+
+    def _infer_daterange_or_raise(self, importer: Importer, file: Path|IO[bytes], filename: str) -> DateRange:
+        if isinstance(file, Path):
+            with open(file, 'rb') as f:
+                date_range = importer.try_infer_daterange(f, filename)
+        else:
+            date_range = importer.try_infer_daterange(file, filename)
+        if date_range is None:
+            raise ValueError(f'Could not infer date range from file {file}')
+        return date_range
 
 class BankAccount(Account):
     """

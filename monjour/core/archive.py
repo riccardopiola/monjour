@@ -10,7 +10,7 @@ from monjour.core.common import DateRange
 
 if TYPE_CHECKING:
     from monjour.core.config import Config
-    from monjour.core.importer import ImporterInfo
+    from monjour.core.importer import ImporterInfo, ImportContext
 
 ArchiveID: TypeAlias = str
 
@@ -20,7 +20,7 @@ class HashMismatchError(Exception):
 class ArchiveRecord(TypedDict):
     id: str
     imported_date: dt.datetime
-    importer_id: str
+    importer_id: str|None
     account_id: str
     file_path: str
     file_hash: str
@@ -65,28 +65,23 @@ class Archive:
             self.load()
 
     @staticmethod
-    def calculate_archive_id(account_id: str, date_range: DateRange) -> ArchiveID:
-        """
-        Calculate the archive id for a file based on the account id and the date range.
-        """
-        return f'{account_id}_{date_range.start.strftime("%Y-%m-%d")}_{date_range.end.strftime("%Y-%m-%d")}'
-
-    @staticmethod
     def calculate_file_hash(buf: IO[bytes]) -> str:
         """
         Calculate the hash of the file contents.
         """
+        buf.seek(0)
         return hashlib.md5(buf.read()).hexdigest()
 
     ########################################################
     # Convenience methods
     ########################################################
 
-    def is_archive_id_free(self, archive_id: ArchiveID) -> bool:
+    def calculate_archive_id(self, account_id: str, date_range: DateRange) -> tuple[ArchiveID, bool]:
         """
-        Check if the archive id is not already in use.
+        Reserve an archive id for a file based on the account id and the date range.
         """
-        return archive_id not in self.records
+        archive_id = f'{account_id}_{date_range.start.strftime("%Y-%m-%d")}_{date_range.end.strftime("%Y-%m-%d")}'
+        return (archive_id, archive_id in self.records)
 
     def get_record(self, archive_id: ArchiveID) -> ArchiveRecord:
         """
@@ -120,8 +115,7 @@ class Archive:
 
     def register_file(
         self,
-        account_id: str,
-        importer_info: "ImporterInfo",
+        import_ctx: "ImportContext",
         date_range: DateRange,
         filepath: Path,
     ) -> ArchiveID:
@@ -143,17 +137,16 @@ class Archive:
         """
         with open(filepath, 'rb') as f:
             file_hash = Archive.calculate_file_hash(f)
-        archive_id = self._register_file(account_id, importer_info, date_range,
-                                         str(filepath), file_hash, is_managed_by_archive=False)
+        archive_id = self._register_file(import_ctx, date_range, str(filepath), file_hash,
+                                         is_managed_by_archive=False)
         return archive_id
 
     def archive_file(
         self,
-        account_id: str,
-        importer_info: "ImporterInfo",
+        import_ctx: "ImportContext",
         date_range: DateRange,
         file: IO[bytes],
-        extension: str,
+        extension: str, # Extension without the dot
     ) -> ArchiveID:
         """
         Archive a file in the archive directory and record the metadata in the archive table.
@@ -175,25 +168,25 @@ class Archive:
         file_hash = Archive.calculate_file_hash(file)
 
         # Calculate the new filename
-        archive_id = Archive.calculate_archive_id(account_id, date_range)
-        filename = archive_id + extension
-        filepath = Path(self.config.archive_dir) / account_id / filename
+        filename = import_ctx.archive_id + "." + extension
+        filepath = Path(self.config.archive_dir) / import_ctx.account.id / filename
 
         # Copy the file to the archive directory
-        with open(filepath, 'wb') as fin:
-            with open(filepath, 'rb') as fout:
-                fin.write(fout.read())
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+        with open(filepath, 'wb') as f:
+            file.seek(0)
+            f.write(file.read())
+        log.info(f'File {filepath} copied to archive')
 
         # Note that we only pass filename to be saved in the 'file_path' field
         # The full path can be reconstructed by joining the archive_dir and the account_id
-        archive_id = self._register_file(account_id, importer_info, date_range,
-                                            filename, file_hash, is_managed_by_archive=True)
+        archive_id = self._register_file(import_ctx, date_range, filename, file_hash,
+                                         is_managed_by_archive=True)
         return archive_id
 
     def _register_file(
         self,
-        account_id: str,
-        importer_info: "ImporterInfo",
+        import_ctx: "ImportContext",
         date_range: DateRange,
         filepath: str,
         file_hash: str,
@@ -203,11 +196,11 @@ class Archive:
         Internal method to register a file in the archive table.
         If the file has already been archived, it will check the hash and raise an error if it doesn't match.
         """
-        archive_id = Archive.calculate_archive_id(account_id, date_range)
+        archive_id = import_ctx.archive_id
         if archive_id in self.records:
-            if file_hash == self.records[archive_id]['file_hash']:
-                log.info(f'File {archive_id} has already been archived')
-                return archive_id
+            record = self.records[archive_id]
+            if file_hash == record['file_hash']:
+                return self._reimport_file(import_ctx, filepath, file_hash, is_managed_by_archive)
             else:
                 raise HashMismatchError(f'File {archive_id} has already been archived but the hash does not match')
 
@@ -215,8 +208,8 @@ class Archive:
         self.records[archive_id] = ArchiveRecord(
             id                = archive_id,
             imported_date     = dt.datetime.now(),
-            importer_id       = importer_info.id,
-            account_id        = account_id,
+            importer_id       = import_ctx.importer_id,
+            account_id        = import_ctx.account.id,
             file_path         = filepath,
             file_hash         = file_hash,
             date_start        = date_range.start,
@@ -224,8 +217,35 @@ class Archive:
             is_managed_by_archive= is_managed_by_archive,
         )
         self.save()
-        log.info(f'Imported file {filepath} for account {account_id}')
+        log.info(f'File {filepath} imported with id: {archive_id}')
         return archive_id
+
+    def _reimport_file(
+        self,
+        import_ctx: "ImportContext",
+        filepath: str,
+        file_hash: str,
+        is_managed_by_archive: bool,
+    ) -> ArchiveID:
+        """
+        A file with the same archive id has already been imported. Check if the new file is the same.
+        """
+        # Right now the archive is very strict and doesn't allow re-importing files with different hashes
+        # We might want to relax this in the future
+        prev = self.records[import_ctx.archive_id]
+        if prev['is_managed_by_archive'] != is_managed_by_archive:
+            raise ValueError(f'Cannot re-import file {import_ctx.archive_id} with different management status')
+        if prev['file_hash'] != file_hash:
+            raise ValueError(f'Cannot re-import file {import_ctx.archive_id} with different hash')
+        if prev['importer_id'] != import_ctx.importer_id:
+            import_ctx.diag_warning(f'File {import_ctx.archive_id} was imported with a different importer ({prev['importer_id']}). The record has been updated to the new importer.')
+            prev['importer_id'] = import_ctx.importer_id
+        prev['imported_date'] = dt.datetime.now()
+        prev['file_path'] = filepath
+
+        self.save()
+        log.info(f'File {import_ctx.archive_id} was re-imported')
+        return import_ctx.archive_id
 
     ########################################################
     # Archive records management
@@ -287,6 +307,10 @@ class Archive:
         def custom_serializer(obj):
             if isinstance(obj, dt.datetime):
                 return obj.isoformat()  # Convert datetime to string
+            # FIXME: Streamlit date picker uses dt.date instead of dt.datetime
+            # maybe we should convert everything to dt.date?
+            elif isinstance(obj, dt.date):
+                return obj.isoformat()
             raise TypeError(f"Type {type(obj)} not serializable")
 
         path = filepath or self.archive_file_path

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import datetime as dt
 import re
 import warnings
+import pandas as pd
 
 warnings.filterwarnings("ignore", category=FutureWarning, message="The behavior of array concatenation with empty entries is deprecated")
 

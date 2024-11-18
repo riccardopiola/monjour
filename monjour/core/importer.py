@@ -2,6 +2,8 @@ import pandas as pd
 from abc import ABC, abstractmethod
 from typing import IO, TYPE_CHECKING
 
+from monjour.utils.diagnostics import DiagnosticCollector
+
 if TYPE_CHECKING:
     from monjour.core.account import Account
 
@@ -30,20 +32,26 @@ class ImporterInfo:
 class InvalidFileError(Exception):
     pass
 
-class ImportContext:
+class ImportContext(DiagnosticCollector):
     account: "Account"
     archive: Archive
     archive_id: ArchiveID
-    date_range: DateRange
+    date_range: DateRange|None
+    filename: str|None
     extra: dict
+    importer_id: str|None
 
     def __init__(self, account: "Account", archive: Archive, archive_id: ArchiveID,
-                 date_range: DateRange,extra: dict = {}):
+                 date_range: DateRange|None=None, filename: str|None=None, extra: dict = {}):
+        super().__init__()
         self.account = account
         self.archive = archive
         self.archive_id = archive_id
         self.date_range = date_range
+        self.filename = filename
         self.extra = extra
+        self.importer_id = None
+
 class Importer(ABC):
     """
     Base class for all Importers.
@@ -99,6 +107,13 @@ class Importer(ABC):
             InvalidFileError: If the file cannot be imported.
             NotImplementedError: If the importer doesn't support this operation.
         """
+        raise NotImplementedError()
+
+    def try_infer_daterange(
+        self,
+        file: IO[bytes],
+        filename: str|None=None,
+    ) -> DateRange|None:
         raise NotImplementedError()
 
 def importer(locale: str, v: str, friendly_name: str | None = None):
