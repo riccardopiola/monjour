@@ -12,17 +12,17 @@ class ImporterInfo:
     supported_locale: str
     version: str
     importer_class_name: str
-    module: str|None
+    module: str
     friendly_name: str|None
 
-    def __init__(self, locale: str, v: str, cls_name: str,
-                 module: str|None=None, friendly_name: str | None = None):
+    def __init__(self, locale: str, v: str, cls_name: str, module: str,
+                 id: str|None=None, friendly_name: str | None = None):
         self.supported_locale = locale
         self.version = v
         self.importer_class_name = cls_name
         self.module = module
         self.friendly_name = friendly_name or f"{cls_name} {locale} v{v}"
-        self.id = f'{cls_name}_{locale}_v{v}'
+        self.id = id or f'{cls_name}_{locale}_v{v}'
 
     def supports_locale(self, locale: str) -> bool:
         return self.supported_locale == '*' or self.supported_locale == locale

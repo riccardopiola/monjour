@@ -136,7 +136,7 @@ UNICREDIT_IT_COLUMN_DTYPES = {
     'unicredit_desc':       'string',
 }
 
-@importer(locale='it_IT', v='0.1')
+@importer(locale='it_IT', v='1.0')
 class UnicreditImporter(Importer):
 
     def import_file(

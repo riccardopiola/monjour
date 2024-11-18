@@ -3,7 +3,7 @@ import pandas as pd
 from monjour.core.importer import *
 
 from monjour.providers.paypal.paypal_types import PaypalTransactionType
-import monjour.providers.paypal.importers.common as paypal_common
+import monjour.providers.paypal.importers.generic_v1 as paypal_common
 import monjour.providers.generic.csv_importer as csv_importer
 
 COLUMN_MAPPING = {
