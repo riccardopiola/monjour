@@ -1,0 +1,46 @@
+{
+	// Place your finance_dse workspace snippets here. Each snippet is defined under a snippet name and has a scope, prefix, body and 
+	// description. Add comma separated ids of the languages where the snippet is applicable in the scope field. If scope 
+	// is left empty or omitted, the snippet gets applied to all languages. The prefix is what is 
+	// used to trigger the snippet and the body will be expanded and inserted. Possible variables are: 
+	// $1, $2 for tab stops, $0 for the final cursor position, and ${1:label}, ${2:another} for placeholders. 
+	// Placeholders with the same ids are connected.
+	// Example:
+	// "Print to console": {
+	// 	"scope": "javascript,typescript",
+	// 	"prefix": "log",
+	// 	"body": [
+	// 		"console.log('$1');",
+	// 		"$2"
+	// 	],
+	// 	"description": "Log output to console"
+	// }
+	"Import Streamlit": {
+		"scope": "python",
+		"prefix": "st",
+		"body": [
+			"import streamlit as st"
+		],
+		"description": "Import Streamlit"
+	},
+	"Import Pandas": {
+		"scope": "python",
+		"prefix": "pd",
+		"body": [
+			"import pandas as pd"
+		],
+		"description": "Import Pandas"
+	},
+	"Import StApp": {
+		"scope": "python",
+		"prefix": "stapp",
+		"body": [
+			"import streamlit as st",
+			"",
+			"from monjour.st import StApp",
+			"",
+			"app = StApp(st.session_state.project_dir)"
+		],
+		"description": "Import StApp"
+	}
+}

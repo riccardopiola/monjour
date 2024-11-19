@@ -1,4 +1,6 @@
 import argparse
+import sys
+import os
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--init', action='store_true', help='Initialize a project in the current directory')
@@ -8,5 +10,12 @@ parser.add_argument('--console', action='store_true', help='Launch the separate 
 args = parser.parse_args()
 
 if args.streamlit:
-    from monjour.st import st_main
-    st_main()
+    import streamlit.web.cli as stcli
+    import streamlit as st
+
+    app_entry_file = os.path.join( os.path.dirname(__file__), 'st_main.py')
+    sys.argv = ["streamlit", "run", app_entry_file]
+
+    # This will start the server on this thread and
+    # run the streamlit script on a different thread
+    stcli.main()

@@ -7,7 +7,7 @@ from monjour.st.st_app import StApp
 
 import streamlit as st
 
-mj_st_home = Path(os.path.dirname(__file__))
+st_lib_home = Path(os.path.dirname(__file__))
 
 st.session_state.project_dir = os.path.curdir
 st_app = StApp(st.session_state.project_dir)
@@ -16,15 +16,15 @@ st_app = StApp(st.session_state.project_dir)
 # App setup
 ######################################
 
-st_app.app.combine_accounts()
+st_app.app.run()
 
 ######################################
 # Pages
 ######################################
 
-home_page = st.Page(mj_st_home / 'ui' / 'home.py', title="Home")
-import_page = st.Page(mj_st_home / 'ui' / 'import.py', title="Import")
-archive_page = st.Page(mj_st_home / 'ui' / 'archive.py', title="Archive")
+home_page = st.Page(st_lib_home / 'ui' / 'home.py', title="Home")
+import_page = st.Page(st_lib_home / 'ui' / 'import.py', title="Import")
+archive_page = st.Page(st_lib_home / 'ui' / 'archive.py', title="Archive")
 
 # User defined pages
 user_pages = st_app.find_custom_st_pages()

@@ -7,18 +7,31 @@ if TYPE_CHECKING:
     from monjour.core.account import Account
 
 class MergeContext(DiagnosticCollector):
-    df: pd.DataFrame
-    current_account: "Account"
+    cur_acc: "Account|None" = None
 
     merged: list["Account"]
     to_merge: list["Account"]
 
-    def __init__(self, df: pd.DataFrame, first_acc: "Account"):
+    def __init__(self):
         super().__init__()
-        self.df = df
         self.merged = []
         self.to_merge = []
-        self.current_account = first_acc
 
+    def cur_acc_or_raise(self) -> "Account":
+        if self.cur_acc is None:
+            raise ValueError("No current account")
+        return self.cur_acc
+
+    def cur_df_or_raise(self) -> pd.DataFrame:
+        if self.cur_acc is None:
+            raise ValueError("No current account")
+        return self.cur_acc.data
+
+    def advance(self):
+        if self.cur_acc is None:
+            self.cur_acc = self.to_merge.pop(0)
+        else:
+            self.merged.append(self.cur_acc)
+            self.cur_acc = self.to_merge.pop(0)
 
 MergerFn = Callable[[MergeContext, pd.DataFrame], pd.DataFrame]

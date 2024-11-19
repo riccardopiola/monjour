@@ -107,7 +107,7 @@ class Account(ABC):
             self._merger = self.get_default_merger()
         return self._merger
 
-    def merge(self, ctx: MergeContext) -> pd.DataFrame:
+    def merge(self, ctx: MergeContext, other: pd.DataFrame) -> pd.DataFrame:
         """
         Merge the account data into another DataFrame.
         This method is usually called by App when it merges all the accounts into a single DataFrame.
@@ -116,9 +116,10 @@ class Account(ABC):
         that is necessary to combine the account data with the other DataFrame.
 
         Args:
+            ctx:   MergeContext object containing the accounts to merge.
             other: DataFrame to merge the account data into.
         """
-        return self.merger(ctx, self.data)
+        return self.merger(ctx, other)
 
     ##############################################
     # Abstract methods

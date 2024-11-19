@@ -18,7 +18,7 @@ class App:
     df: pd.DataFrame # Master account
 
     ##############################################
-    # Definitions
+    # Configuration
     ##############################################
 
     def __init__(self, config: Config):
@@ -38,7 +38,7 @@ class App:
             self.categories[category.name] = category
 
     ##############################################
-    # Run
+    # API
     ##############################################
 
     @property
@@ -64,49 +64,44 @@ class App:
         ctx = self.accounts[account_id].import_file(self.archive, file, date_range)
         ctx.log_all_diagnostics()
 
-    def combine_accounts(self, include: list[str] = [], exclude: list[str] = [], order: list[str] = [],
-                         merge_fn: MergerFn|None = None):
+    def run(self):
+        self.combine_accounts()
+        self.categorize()
+
+    ##############################################
+    # API Details
+    ##############################################
+
+    def combine_accounts(self, accounts: list[str]|None = None,
+                         merge_fn: MergerFn|None = None) -> MergeContext:
         """
-        Create a master account by combining all the accounts in the app.
+        Create a master account by combining the specified accounts.
 
         Args:
-            include:    List of account IDs to include in the merge. If empty, all accounts are included.
-            exclude:    List of account IDs to exclude from the merge. If empty, no accounts are excluded.
-            order:      List of account IDs to specify the order of the merge. If empty, the order in which
-                        the accounts were defined is used.
+            accounts: List of account IDs to merge. If None, all accounts are merged.
+            merge_fn: Optional custom merge function to use instead of the default merge function.
         """
-        self.df = pd.DataFrame() # Reset the master sheet
+        df = pd.DataFrame() # Create a new empty DataFrame
+        ctx = MergeContext()
 
         if len(self.accounts) == 0:
-            log.warning("No accounts defined. Nothing to merge.")
-            return self.df
+            log.warning("combine_accounts: No accounts to merge")
 
         # Filter and reorder the accounts to merge
-        account_ids = list(self.accounts.keys())
-        if len(order) > 0:
-            account_ids = sorted(account_ids, key=lambda x: order.index(x) if x in order else len(order))
-        if len(include) > 0:
-            account_ids = [x for x in account_ids if x in include]
-        if len(exclude) > 0:
-            account_ids = [x for x in account_ids if x not in exclude]
-        accounts_to_merge = [ self.accounts[account_id] for account_id in account_ids ]
+        accounts_to_merge = [ self.accounts[id] for id in accounts or self.accounts.keys() ]
 
         # Create the merge context
-        ctx = MergeContext(self.df, accounts_to_merge[0])
         ctx.to_merge = accounts_to_merge.copy()
         # Merge all the accounts in order
         for account in accounts_to_merge:
-            ctx.current_account = account
+            ctx.advance()
             # Let the account perform the merge
             if merge_fn:
-                ctx.df = merge_fn(ctx, account.data)
+                df = merge_fn(ctx, df)
             else:
-                ctx.df = account.merge(ctx)
-            # Update the merge context
-            ctx.to_merge.pop(0)
-            ctx.merged.append(account)
+                df = account.merge(ctx, df)
         ctx.log_all_diagnostics()
-        return self.df
+        return ctx
 
     def categorize(self):
         pass
