@@ -1,12 +1,138 @@
-import pandas as pd
-from datetime import datetime
+import re
 
-import monjour.core.log as log
 from monjour.core.importer import *
+from monjour.core.transaction import PaymentType
+from monjour.utils.regex_parser import RegexParser
 
-import monjour.providers.generic.csv_importer as csv_importer
-from monjour.providers.unicredit.unic_categories import UnicreditCategory
+import monjour.providers.generic.importers.csv_importer as csv_importer
+from monjour.providers.unicredit.unic_types import UnicreditCategory, UnicreditTransaction
 from monjour.providers.unicredit.unic_account import Unicredit
+
+PARSER = RegexParser[UnicreditCategory]()
+
+PARSER.define_class('unic_id', r"\d{15}\,\d{6}")
+PARSER.define_class('ecommerce', r"E-Commerce")
+PARSER.define_class('date', r"\d{2}/\d{2}/\d{4}")
+PARSER.define_class('card', r"\d{4}")
+# Matches anything except 3 consecutive spaces
+PARSER.define_class('str', r"[^\s]+(?:\s\s?[^\s]+)*")
+
+def _unic_common(*patterns, allow_extras=False):
+    pattern = r'\s\s\s+'.join([' {unic_id}', *patterns])
+    if allow_extras:
+        pattern += '.*'
+    return pattern
+
+#####################################
+# Fees
+#####################################
+PARSER.add_case(UnicreditCategory.INTEREST_FEES, _unic_common(
+    r"COMPETENZE \(INTERESSI/ONERI\)", allow_extras=True))
+
+PARSER.add_case(UnicreditCategory.COMMISSIONS_FEES, _unic_common(
+    r"COMMISSIONI - PROVVIGIONI - SPESE", allow_extras=True))
+
+PARSER.add_case(UnicreditCategory.FIXED_MONTHLY_COST, _unic_common(
+    r"MY GENIUS",  r"COSTO FISSO MESE DI {month:str}", allow_extras=True))
+
+PARSER.add_case(UnicreditCategory.TAXES, _unic_common(
+    r"IMPOSTA", allow_extras=True))
+
+#####################################
+# Payments
+#####################################
+PARSER.add_case(UnicreditCategory.INSURANCE_PREMIUM,
+    _unic_common(r"PAGAMENTO PREMIO ASSICURAZIONE", allow_extras=True))
+
+PARSER.add_case(UnicreditCategory.PAYMENT, _unic_common(
+    r"PAGAMENTO {ecommerce}?{payment_provider:str}?\s*del {original_date:date}", # e.g PAGAMENTO E-Commerce del 04/12/2019
+    r"CARTA \*{card}", "DI {currency:str}", "{amount:str}", # e.g CARTA *1423    DI EUR            3,00
+    "{counterpart:str}", "{location:str}")) # MCDONALD'S MILANO SAN BAB          MILANO
+
+PARSER.add_case(UnicreditCategory.SEPA_DIRECT_DEBIT, _unic_common(
+    r"ADDEBITO SEPA DD PER FATTURA A VOSTRO CARICO", # TODO: Figure out what those unknown fields are
+    r"{unknown1:str}", "{unknown2:str}", "{counterpart:str}", allow_extras=True))
+
+PARSER.add_case(UnicreditCategory.OTHER_PAYMENTS, _unic_common(
+    r"PAGAMENTI DIVERSI", allow_extras=True))
+
+PARSER.add_case(UnicreditCategory.OUTGOING_TRANSFER, _unic_common(
+    r"DISPOSIZIONE DI BONIFICO", allow_extras=True))
+
+PARSER.add_case(UnicreditCategory.PHONE_RECHARGE, _unic_common(
+    r"RICARICA TELEFONICA SERVIZIO INTERNET BANKING", allow_extras=True))
+#####################################
+# Income
+#####################################
+PARSER.add_case(UnicreditCategory.INCOMING_TRANSFER, _unic_common(
+    r"BONIFICO A VOSTRO FAVORE .*DA\s+{counterpart:str}.+PER\s+{subject:str}" +
+    r".*TRN\s+{trn:str}.*(?:VA\s+{iban:str})?", allow_extras=True))
+
+PARSER.add_case(UnicreditCategory.ACCOUNT_RECHARGE, _unic_common(
+    r"RICARICA CONTO", allow_extras=True))
+
+PARSER.add_case(UnicreditCategory.MISC_CREDITS, _unic_common(
+    r"ACCREDITI VARI", allow_extras=True))
+
+PARSER.add_case(UnicreditCategory.UNKNOWN, r" {unic_id}.*")
+
+#####################################
+# Middlewares
+#####################################
+
+def add_unicredit_category(df: pd.DataFrame, ctx: ImportContext) -> pd.DataFrame:
+    PARSER.build()
+    def process_row(row):
+        # Limit multiple spaces to three
+        desc = re.sub(r'\s\s+', '   ', row['unicredit_original_desc'])
+        result = PARSER.parse(desc)
+        if result is None:
+            # The regex match for UnicreidtCategory.UNKNOWN is very permissive. If we reach this point
+            # it means the file is not of the correct format or it is malformed
+            raise ValueError(f'Invalid Unicredit transaction: {row}')
+        category, values = result
+        row['unicredit_id'] = values['unic_id']
+        row['unicredit_category'] = category.value
+        row['unicredit_original_desc'] = desc[23:] # Description without unicredit_id
+        match category:
+            case UnicreditCategory.FIXED_MONTHLY_COST:
+                row['desc'] = f"Unicredit monthly cost for {values['month']}"
+            case UnicreditCategory.PAYMENT:
+                if values['ecommerce'] is not None:
+                    row['payment_type'] = PaymentType.Ecommerce.value
+                    row['unicredit_category'] = UnicreditCategory.ECOMMERCE.value
+                else:
+                    row['payment_type'] = PaymentType.CardPayment.value
+                row['payment_type_details'] = {
+                    'card': values['card'],
+                    'provider': values['payment_provider'], # maybe move this to extras
+                }
+                row['extra'] = {
+                    'original_date': values['original_date'],
+                    'original_amount': values['amount'],
+                    'original_currency': values['currency']
+                }
+                row['counterpart'] = values['counterpart']
+                row['location'] = values['location']
+                row['unicredit_original_date'] = values['original_date']
+            case UnicreditCategory.SEPA_DIRECT_DEBIT:
+                row['payment_type'] = PaymentType.PreauthorizedDebit.value
+                row['counterpart'] = values['counterpart']
+            case UnicreditCategory.OUTGOING_TRANSFER:
+                row['payment_type'] = PaymentType.Transfer.value
+                row['desc'] = "Outgoing transfer"
+            case UnicreditCategory.INCOMING_TRANSFER:
+                row['payment_type'] = PaymentType.Transfer.value
+                row['counterpart'] = values['counterpart']
+                row['desc'] = "Incoming transfer from " + values['counterpart']
+            case UnicreditCategory.UNKNOWN:
+                ctx.diag_debug(f'Unknown transaction: {row['date']} {row['amount']} {row['unicredit_original_desc']}')
+            case _:
+                row['desc'] = row['unicredit_original_desc']
+        return row
+
+    new_df = df.apply(process_row, axis=1)
+    return new_df # type: ignore
 
 def add_currency_info(df: pd.DataFrame, ctx: ImportContext) -> pd.DataFrame:
     """
@@ -17,125 +143,18 @@ def add_currency_info(df: pd.DataFrame, ctx: ImportContext) -> pd.DataFrame:
     df['currency'] = ctx.account.currency
     return df
 
-def add_unicredit_category(df: pd.DataFrame, _ctx: ImportContext) -> pd.DataFrame:
-
-    def process_row(row):
-        d = row['unicredit_desc']
-        fields = []
-        for i in range(0, len(d), 50):
-            desc_slice = d[i:i+50]
-            if d[i-1] != ' ' and d[i] == ' ' and i > 0:
-                fields[-1] += desc_slice
-            else:
-                fields.append(desc_slice.strip())
-        # TODO: match transaction
-        row['unicredit_id'] = fields[0]
-        row['unicredit_original_desc'] = ' '.join(fields[1:])
-
-        # Fees
-        f = fields[1]
-        if f.startswith('COMPETENZE (INTERESSI/ONERI)'):
-            unic_category = UnicreditCategory.INTEREST_FEES
-        elif f.startswith('COMMISSIONI - PROVVIGIONI - SPESE'):
-            unic_category = UnicreditCategory.COMMISSIONS_FEES
-        elif f.startswith('MY GENIUS COSTO FISSO MESE'):
-            unic_category = UnicreditCategory.FIXED_MONTHLY_COST
-
-        # Taxes
-        elif f.startswith('IMPOSTA BOLLO CONTO CORRENTE DPR642/72-DM24/5/2012'):
-            unic_category = UnicreditCategory.TAXES
-
-        # Payments
-        elif f.startswith('PAGAMENTO E-Commerce') or \
-            f.startswith('PAGAMENTO GOOGLE PAY E-Commerce'):
-            unic_category = UnicreditCategory.ECOMMERCE
-
-        elif f.startswith('PAGAMENTO PREMIO ASSICURAZIONE'):
-            unic_category = UnicreditCategory.INSURANCE_PREMIUM
-
-        elif f.startswith('PAGAMENTO GOOGLE PAY NFC') or \
-            f.startswith('PAGAMENTO') or \
-            f.startswith('PAGAMENTO Contactless'):
-            unic_category = UnicreditCategory.PAYMENT
-
-        elif f.startswith('ADDEBITO SEPA DD PER FATTURA A VOSTRO CARICO'):
-            unic_category = UnicreditCategory.SEPA_DIRECT_DEBIT
-        elif f.startswith('PAGAMENTI DIVERSI'):
-            unic_category = UnicreditCategory.OTHER_PAYMENTS
-
-        elif f.startswith('DISPOSIZIONE DI BONIFICO'):
-            unic_category = UnicreditCategory.OUTGOING_TRANSFER
-
-        elif f.startswith('RICARICA TELEFONICA SERVIZIO INTERNET BANKING'):
-            unic_category = UnicreditCategory.PHONE_RECHARGE
-
-        # Income
-        elif f.startswith('BONIFICO A VOSTRO FAVORE'):
-            unic_category = UnicreditCategory.INCOMING_TRANSFER
-
-        elif f.startswith('RICARICA CONTO'):
-            unic_category = UnicreditCategory.ACCOUNT_RECHARGE
-
-        elif f.startswith('ACCREDITI VARI'):
-            unic_category = UnicreditCategory.MISC_CREDITS
-
-        # Unknown
-        else:
-            unic_category = UnicreditCategory.UNKNOWN
-
-        row['unicredit_category'] = unic_category.value
-        match unic_category:
-            case UnicreditCategory.PAYMENT \
-                | UnicreditCategory.ECOMMERCE:
-                if len(fields) < 5:
-                    row['unicredit_category'] = UnicreditCategory.UNKNOWN.value
-                    row['desc'] = ' '.join(fields[2:])
-                    log.warning(f'Unknown payment: {row}')
-                else:
-                    row['payment_details'] = fields[2]
-                    row['counterpart'] = fields[3]
-                    row['location'] = fields[4]
-                    row['desc'] = ''
-            case UnicreditCategory.SEPA_DIRECT_DEBIT:
-                if len(fields) < 7:
-                    row['unicredit_category'] = UnicreditCategory.UNKNOWN.value
-                    row['desc'] = ' '.join(fields[2:])
-                    log.warning(f'Unknown SEPA direct debit: {row}')
-                else:
-                    row['payment_details'] = fields[2]
-                    row['counterpart'] = fields[4]
-                    row['desc'] = fields[3] + fields[5] + fields[6]
-            case UnicreditCategory.OUTGOING_TRANSFER \
-                | UnicreditCategory.INCOMING_TRANSFER:
-                if len(fields) < 5:
-                    row['unicredit_category'] = UnicreditCategory.UNKNOWN.value
-                    row['desc'] = ' '.join(fields[2:])
-                    log.warning(f'Unknown transfer: {row}')
-                else:
-                    row['payment_details'] = fields[2]
-                    row['counterpart'] = fields[3]
-                    row['desc'] = fields[4]
-            case _:
-                row['desc'] = ' '.join(fields[2:])
-        return row
-
-    new_df = df.apply(process_row, axis=1)
-    return new_df # type: ignore
-
+#####################################
+# Importer
+#####################################
 
 UNICREDIT_IT_COLUMN_MAPPING = {
     'Data Registrazione':   'unicredit_registration_date',
     'Data valuta':          'date',
-    'Descrizione':          'unicredit_desc',
+    'Descrizione':          'unicredit_original_desc',
     'Importo (EUR)':        'amount',
 }
 
-UNICREDIT_IT_COLUMN_DTYPES = {
-    'date':                 'datetime64[s]',
-    'amount':               'float64',
-    'unicredit_registration_date':    'datetime64[s]',
-    'unicredit_desc':       'string',
-}
+UNICREDIT_IT_COLUMN_DTYPES = UnicreditTransaction.to_pd_dtype_dict()
 
 @importer(locale='it_IT', v='1.0')
 class UnicreditImporter(Importer):

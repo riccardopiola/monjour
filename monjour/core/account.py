@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import IO, Callable
+from typing import IO, Callable, ClassVar, Self
 import pandas as pd
+import numpy as np
+from dataclasses import dataclass
 
 import monjour.core.log as log
 from monjour.core.archive import Archive, ArchiveID
@@ -9,23 +11,7 @@ from monjour.core.common import DateRange
 from monjour.core.config import Config
 from monjour.core.importer import ImportContext, Importer, ImporterInfo
 from monjour.core.merge import MergeContext, MergerFn
-
-# Columns that will always be present in the Account DataFrame
-ACCOUNT_COLUMNS = {
-    'date':             pd.Series([], dtype='datetime64[s]'),
-    'amount':           pd.Series([], dtype='float64'),
-    'currency':         pd.Series([], dtype='string'),
-    'desc':             pd.Series([], dtype='string'),
-    'archive_id':       pd.Series([], dtype='string'),
-    'category':         pd.Series([], dtype='string'),
-    'counterpart':      pd.Series([], dtype='string'),
-}
-
-# Columns that will always be present in the BankAccount DataFrame
-BANK_ACCOUNT_COLUMNS = ACCOUNT_COLUMNS | {
-    'payment_details':  pd.Series([], dtype='string'),
-    'location':         pd.Series([], dtype='string'),
-}
+from monjour.core.transaction import Transaction
 
 class Account(ABC):
     """
@@ -47,8 +33,6 @@ class Account(ABC):
                     the importer will be automatically selected based on the locale.
 
         PROVIDER_ID:    Unique identifier for the provider of the account.
-        DF_COLUMNS:     Columns that should be present in the DataFrame.
-        DTYPES:         Dictionary of column names and their corresponding dtypes.
     """
 
     id: str
@@ -60,9 +44,8 @@ class Account(ABC):
     _merger: MergerFn|None
 
     # Should be overridden by subclasses
-    PROVIDER_ID = 'generic'
-    DF_COLUMNS: dict[str, pd.Series] = ACCOUNT_COLUMNS
-    DTYPES: dict[str, str] = { k: v.dtype for k, v in ACCOUNT_COLUMNS.items() }
+    PROVIDER_ID: ClassVar[str] = 'generic'
+    TRANSACTION_TYPE: ClassVar[type[Transaction]] = Transaction
 
     ##############################################
     # Initialization
@@ -81,7 +64,7 @@ class Account(ABC):
         self.locale = locale
         self._importer = importer
         self._merger = merger
-        self.data = pd.DataFrame(self.DF_COLUMNS)
+        self.data = self.TRANSACTION_TYPE.to_empty_df()
 
     def initialize(self, config: Config, archive: Archive):
         """
@@ -154,7 +137,13 @@ class Account(ABC):
         raise NotImplementedError()
 
     def set_importer(self, importer: Importer|str) -> Importer:
-        raise NotImplementedError()
+        if isinstance(importer, str):
+            if self.importer.info.id == importer:
+                return self.importer
+            raise NotImplementedError()
+        else:
+            self._importer = importer
+            return self._importer
 
     def get_available_importers(self) -> list[ImporterInfo]:
         return [self.importer.info]
@@ -248,28 +237,3 @@ class Account(ABC):
             raise ValueError(f'Could not infer date range from file {file}')
         return date_range
 
-class BankAccount(Account):
-    """
-    Small extension of the Account class for bank accounts that have an IBAN or card number.
-    """
-
-    iban: str|None
-    card_last_4_digits: str|None
-
-    PROVIDER_NAME = 'generic_bank'
-    DF_COLUMNS = BANK_ACCOUNT_COLUMNS
-    DTYPES = { k: v.dtype for k, v in BANK_ACCOUNT_COLUMNS.items() }
-
-    def __init__(
-        self,
-        id: str,
-        name: str|None = None,
-        locale: str|None = None,
-        iban: str|None = None,
-        card_last_4_digits: str|None = None,
-        importer: Importer|None = None,
-        merger: MergerFn|None = None,
-    ):
-        super().__init__(id, name=name, locale=locale, importer=importer, merger=merger)
-        self.iban = iban
-        self.card_last_4_digits = card_last_4_digits

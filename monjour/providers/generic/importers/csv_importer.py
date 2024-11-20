@@ -77,7 +77,7 @@ def rename_columns(column_remapping: dict[str, str]):
         return df
     return middleware
 
-def cast_columns(column_dtypes: dict, fill_unavailable_cols: bool = False):
+def cast_columns(column_dtypes: dict, fill_unavailable_cols: bool = True):
     """
     Factory function that returns a CSV middleware that casts columns to the specified dtypes
     """
@@ -88,7 +88,8 @@ def cast_columns(column_dtypes: dict, fill_unavailable_cols: bool = False):
                 df[column] = df[column].astype(dtype)
             # fill unavailable columns with empty series
             elif fill_unavailable_cols:
-                df[column] = pd.Series([], dtype=dtype)
+                df[column] = None
+                df[column].astype(dtype)
         return df
     return middleware
 
@@ -98,6 +99,6 @@ def remove_useless_columns(df: pd.DataFrame, ctx: ImportContext) -> pd.DataFrame
 
     The columns to keep are defined in the account's DF_COLUMNS attribute.
     """
-    useful_columns = ctx.account.DF_COLUMNS.keys()
+    useful_columns = ctx.account.TRANSACTION_TYPE.get_attribute_names()
     return df[useful_columns]
 

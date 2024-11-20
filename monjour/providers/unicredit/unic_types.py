@@ -1,4 +1,9 @@
+import pandas as pd
 from enum import Enum
+from dataclasses import dataclass
+from typing import Literal, TypedDict
+
+from monjour.core.transaction import Transaction, PaymentType
 
 class UnicreditCategory(Enum):
     UNKNOWN             = 'Unknown'             # 'Original: N/A'
@@ -21,3 +26,31 @@ class UnicreditCategory(Enum):
     INCOMING_TRANSFER   = 'Incoming Transfer'   # 'BONIFICO A VOSTRO FAVORE'
     ACCOUNT_RECHARGE    = 'Account Recharge'    # 'RICARICA CONTO'
     MISC_CREDITS        = 'Miscellaneous Credits'  # 'ACCREDITI VARI'
+
+@dataclass
+class UnicreditTransaction(Transaction):
+    # Date in which the transaction was registered
+    unicredit_registration_date: pd.Timestamp
+
+    # Unicredit specific identifier of the transaction (dont't rely on this being unique)
+    unicredit_id: str
+
+    # Unicredit specific category of the transaction
+    unicredit_category: UnicreditCategory
+
+    # The original description
+    unicredit_original_desc: str
+
+# class UnicreditPayment(UnicreditTransaction):
+#     unicredit_category: UnicreditCategory.PAYMENT|UnicreditCategory.ECOMMERCE
+#     payment_type: PaymentType.CardPayment|PaymentType.Ecommerce
+#     payment_type_details: dict[Literal[
+#         'card',
+#         'provider',
+#     ], str|None]
+#     extra: dict[Literal[
+#         'original_date'
+#         'original_amount'
+#         'original_currency'
+#     ], str|None]
+    

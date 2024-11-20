@@ -18,6 +18,10 @@ class LocaleImporter:
         self.importers = {}
         self.cache = {}
 
+    ##############################################
+    # Setup
+    ##############################################
+
     def add_option(self, locale: str, v: str, cls_name: str|None=None, module: str|None=None):
         cls_name = cls_name or self.cls_name
         if module is None:
@@ -29,7 +33,11 @@ class LocaleImporter:
         info = ImporterInfo(locale, v, cls_name, module)
         self.importers[info.id] = info
 
-    def filter(self, with_locale: str|None = None, with_version: str|None=None,
+    ##############################################
+    # Implementation
+    ##############################################
+
+    def find(self, with_locale: str|None = None, with_version: str|None=None,
                with_name: str|None=None) -> list[ImporterInfo]:
         all = self.importers.values()
         if with_locale is not None:
@@ -41,21 +49,7 @@ class LocaleImporter:
             all = [i for i in all if i.friendly_name == with_name]
         return list(all)
 
-    def find_first(self, with_locale: str|None = None, with_version: str|None=None,
-                   with_name: str|None=None) -> ImporterInfo:
-        results = self.filter(with_locale, with_version, with_name)
-        if len(results) == 0:
-            raise Exception('No importer found')
-        return results[0]
-
-    def load_first(self, with_locale: str|None = None, with_version: str|None=None,
-                   with_name: str|None=None) -> type[Importer]:
-        results = self.filter(with_locale, with_version, with_name)
-        if len(results) == 0:
-            raise Exception('No importer found')
-        return self.load_importer(results[0].id)
-
-    def load_importer(self, importer_id: str) -> type[Importer]:
+    def load(self, importer_id: str) -> type[Importer]:
         # First check the cache
         if importer_id in self.cache:
             return self.cache[importer_id]
@@ -66,6 +60,24 @@ class LocaleImporter:
         importer = getattr(module, info.importer_class_name)
         self.cache[info.id] = importer
         return importer
+
+    ##############################################
+    # Convenience
+    ##############################################
+
+    def find_first(self, with_locale: str|None = None, with_version: str|None=None,
+                   with_name: str|None=None) -> ImporterInfo:
+        results = self.find(with_locale, with_version, with_name)
+        if len(results) == 0:
+            raise Exception('No importer found')
+        return results[0]
+
+    def load_first(self, with_locale: str|None = None, with_version: str|None=None,
+                   with_name: str|None=None) -> type[Importer]:
+        results = self.find(with_locale, with_version, with_name)
+        if len(results) == 0:
+            raise Exception('No importer found')
+        return self.load(results[0].id)
 
 
 def with_locale_helper(helper_name: str = 'locale_helper', importers_module: str|None=None):

@@ -6,7 +6,7 @@ from monjour.core.importer import importer, Importer, ImportContext
 from monjour.core.archive import ArchiveID
 from monjour.core.common import DateRange
 
-import monjour.providers.generic.csv_importer as csv_importer
+import monjour.providers.generic.importers.csv_importer as csv_importer
 from monjour.providers.paypal.paypal_types import PaypalTransactionType
 
 def combine_date_hour(df: pd.DataFrame, _ctx: ImportContext) -> pd.DataFrame:

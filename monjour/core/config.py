@@ -2,12 +2,6 @@ from dataclasses import dataclass
 
 @dataclass
 class Config:
-    # Name of the user
-    name: str
-
-    # Surname of the user
-    surname: str
-
     # Currency code (ISO 4217)
     currency: str
 
@@ -22,3 +16,9 @@ class Config:
 
     # Directory where the cache files are stored
     cache_dir: str
+
+    # Name of the user
+    name: str = ""
+
+    # Surname of the user
+    surname: str = ""
