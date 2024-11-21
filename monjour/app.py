@@ -2,6 +2,7 @@ from pathlib import Path
 import pandas as pd
 from typing import IO, Callable
 
+from monjour.core.executor import Executor
 import monjour.core.log as log
 from monjour.core.common import DateRange
 from monjour.core.config import Config
@@ -9,6 +10,7 @@ from monjour.core.account import Account
 from monjour.core.category import Category
 from monjour.core.archive import Archive
 from monjour.core.merge import MergeContext, MergerFn
+from monjour.core.importer import ImportContext, DEFAULT_IMPORT_EXECUTOR
 
 class App:
     config: Config
@@ -21,24 +23,24 @@ class App:
     # Configuration
     ##############################################
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, archive: Archive|None = None):
         self.config = config
-        self.archive = Archive(config)
+        self.archive = Archive(Path(config.appdata_dir) / 'archive') if archive is None else archive
         self.accounts = {}
         self.categories = {}
         self.df = pd.DataFrame()
 
     def define_accounts(self, *accounts: Account):
         for account in accounts:
+            account.initialize(self.config)
             self.accounts[account.id] = account
-            account.initialize(self.config, self.archive)
 
     def define_categories(self, *categories: Category):
         for category in categories:
             self.categories[category.name] = category
 
     ##############################################
-    # API
+    # Public API
     ##############################################
 
     @property
@@ -46,7 +48,8 @@ class App:
         from monjour.replay.app_interactive import AppInteractive
         return AppInteractive(self)
 
-    def import_file(self, account_id: str, file: str|Path, date_range: DateRange|None):
+    def import_file(self, account_id: str, file: str|Path, date_range: DateRange|None,
+                    executor: Executor[ImportContext, pd.DataFrame] = DEFAULT_IMPORT_EXECUTOR):
         """
         Import a file into the account with the given ID.
 
@@ -61,16 +64,22 @@ class App:
         """
         if isinstance(file, str):
             file = Path(file)
-        ctx = self.accounts[account_id].import_file(self.archive, file, date_range)
+        ctx = self.accounts[account_id].import_file(self.archive, file, date_range, executor)
         ctx.log_all_diagnostics()
 
     def run(self):
+        self.archive.load()
+        self.load_all_from_archive()
         self.combine_accounts()
         self.categorize()
 
     ##############################################
-    # API Details
+    # Semi-Public API
     ##############################################
+
+    def load_all_from_archive(self):
+        for account in self.accounts.values():
+            account.load_all_from_archive(self.archive)
 
     def combine_accounts(self, accounts: list[str]|None = None,
                          merge_fn: MergerFn|None = None) -> MergeContext:
@@ -105,3 +114,27 @@ class App:
 
     def categorize(self):
         pass
+
+    ##############################################
+    # Private API
+    ##############################################
+
+    def _archive_file(self, account_id: str, file: IO[bytes], filename: str, date_range: DateRange|None,
+                    executor: Executor[ImportContext, pd.DataFrame] = DEFAULT_IMPORT_EXECUTOR) -> ImportContext:
+        account = self.accounts[account_id]
+        ctx = account.archive_file(self.archive, file, filename, date_range, executor)
+        ctx.log_all_diagnostics()
+        return ctx
+
+    ##############################################
+    # Utils
+    ##############################################
+
+    def copy(self):
+        """
+        Create a shallow copy of the app.
+        """
+        app = App(self.config, self.archive)
+        app.accounts = self.accounts.copy()
+        app.categories = self.categories.copy()
+        return app

@@ -37,9 +37,9 @@
 		"body": [
 			"import streamlit as st",
 			"",
-			"from monjour.st import StApp",
+			"from monjour.st import get_st_app",
 			"",
-			"app = StApp(st.session_state.project_dir)"
+			"app = get_st_app(st.session_state.project_dir)"
 		],
 		"description": "Import StApp"
 	}

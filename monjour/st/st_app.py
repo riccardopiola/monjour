@@ -10,6 +10,9 @@ from monjour.core.account import Account
 from monjour.core.importer import ImporterInfo
 
 @st.cache_resource
+def get_st_app(home_dir: Path|str):
+    return StApp(home_dir)
+
 class StApp:
     home_dir: Path
     app: App
@@ -41,4 +44,9 @@ class StApp:
     def list_importer_for_account(self, account_id: str) -> list[ImporterInfo]:
         acc = self.app.accounts[account_id]
         return acc.get_available_importers()
+
+    def copy(self, new_home_dir: Path|str):
+        new_app = StApp(new_home_dir)
+        new_app.app = self.app.copy()
+        return new_app
 

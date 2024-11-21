@@ -3,14 +3,15 @@ import os
 from pathlib import Path
 
 from monjour.app import App, DateRange
-from monjour.st.st_app import StApp
+from monjour.st.st_app import get_st_app
 
 import streamlit as st
 
 st_lib_home = Path(os.path.dirname(__file__))
+st.set_page_config(layout='wide')
 
 st.session_state.project_dir = os.path.curdir
-st_app = StApp(st.session_state.project_dir)
+st_app = get_st_app(st.session_state.project_dir)
 
 ######################################
 # App setup
@@ -34,6 +35,7 @@ user_pages = st_app.find_custom_st_pages()
 ######################################
 
 pg = st.navigation({
+    'Debug': [st.Page(st_lib_home / 'ui' / 'debug.py', title="Debug")],
     'General': [home_page],
     'Import': [import_page, archive_page],
     **({} if len(user_pages) == 0 else { 'Custom Pages': user_pages })

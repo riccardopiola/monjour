@@ -1,13 +1,58 @@
+import copy
 import pandas as pd
 from abc import ABC, abstractmethod
 from typing import IO, TYPE_CHECKING
 
 from monjour.utils.diagnostics import DiagnosticCollector
+from monjour.core.executor import Executor, ImmediateExecutor
 
 if TYPE_CHECKING:
     from monjour.core.account import Account
 
 from monjour.core.archive import Archive, DateRange, ArchiveID
+
+DEFAULT_IMPORT_EXECUTOR = ImmediateExecutor["ImportContext", pd.DataFrame]()
+
+class ImportContext(DiagnosticCollector):
+    account: "Account"
+    archive: Archive
+    archive_id: ArchiveID
+    date_range: DateRange|None = None
+    filename: str|None = None
+    importer_id: str|None = None
+
+    executor: Executor["ImportContext", pd.DataFrame] = DEFAULT_IMPORT_EXECUTOR
+    extra: dict
+
+    def __init__(self, account: "Account", archive: Archive, archive_id: ArchiveID,
+                 date_range: DateRange|None=None, filename: str|None=None, importer_id: str|None=None,
+                 executor: Executor["ImportContext", pd.DataFrame]=DEFAULT_IMPORT_EXECUTOR,
+                 extra: dict|None=None):
+        super().__init__()
+        self.account = account
+        self.archive = archive
+        self.archive_id = archive_id
+        self.date_range = date_range
+        self.filename = filename
+        self.importer_id = importer_id
+        self.executor = executor
+        self.extra = extra or dict()
+
+    def copy(self):
+        """
+        Performs a shallow copy the immutable fields and a deep copy of the mutable fields
+        for the benefit of DebugExecutor.
+        """
+        return ImportContext(
+            self.account,
+            self.archive,
+            self.archive_id,
+            self.date_range,
+            self.filename,
+            self.importer_id,
+            self.executor,
+            copy.deepcopy(self.extra),
+        )
 
 class ImporterInfo:
     id: str
@@ -32,26 +77,6 @@ class ImporterInfo:
 class InvalidFileError(Exception):
     pass
 
-class ImportContext(DiagnosticCollector):
-    account: "Account"
-    archive: Archive
-    archive_id: ArchiveID
-    date_range: DateRange|None
-    filename: str|None
-    extra: dict
-    importer_id: str|None
-
-    def __init__(self, account: "Account", archive: Archive, archive_id: ArchiveID,
-                 date_range: DateRange|None=None, filename: str|None=None, extra: dict = {}):
-        super().__init__()
-        self.account = account
-        self.archive = archive
-        self.archive_id = archive_id
-        self.date_range = date_range
-        self.filename = filename
-        self.extra = extra
-        self.importer_id = None
-
 class Importer(ABC):
     """
     Base class for all Importers.
@@ -75,7 +100,7 @@ class Importer(ABC):
         self,
         ctx: ImportContext,
         file: IO[bytes],
-    ) -> pd.DataFrame:
+    ) -> pd.DataFrame|None:
         """
         Archive a new file using the provided archiver and return the archive_id.
         This call doesn't require the file to be parsed into a DataFrame.
@@ -91,7 +116,7 @@ class Importer(ABC):
         self,
         ctx: ImportContext,
         file: IO[bytes],
-    ) -> pd.DataFrame:
+    ) -> pd.DataFrame|None:
         """
         Try to import a file and return the archive_id if successful.
         If the file cannot be imported, return None.
@@ -129,8 +154,8 @@ def importer(locale: str, v: str, friendly_name: str | None = None):
     def decorator(cls):
         if not issubclass(cls, Importer):
             raise Exception('Only classes that inherit from Importer can be registered as Importers')
-        def __init__(self: Importer):
-            Importer.__init__(self)
+        def __init__(self):
+            super(cls, self).__init__()
         cls.__init__ = __init__
         cls.info = ImporterInfo(locale, v, cls.__name__, cls.__module__, friendly_name=friendly_name)
         return cls

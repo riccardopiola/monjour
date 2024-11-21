@@ -12,10 +12,7 @@ class Config:
     time_zone: str
 
     # Directory where the imported files are archived
-    archive_dir: str
-
-    # Directory where the cache files are stored
-    cache_dir: str
+    appdata_dir: str
 
     # Name of the user
     name: str = ""

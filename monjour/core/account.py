@@ -2,10 +2,9 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import IO, Callable, ClassVar, Self
 import pandas as pd
-import numpy as np
-from dataclasses import dataclass
 
 import monjour.core.log as log
+from monjour.core.executor import Executor
 from monjour.core.archive import Archive, ArchiveID
 from monjour.core.common import DateRange
 from monjour.core.config import Config
@@ -34,6 +33,9 @@ class Account(ABC):
 
         PROVIDER_ID:    Unique identifier for the provider of the account.
     """
+    # Should be overridden by subclasses
+    PROVIDER_ID: ClassVar[str] = 'generic'
+    TRANSACTION_TYPE: ClassVar[type[Transaction]] = Transaction
 
     id: str
     data: pd.DataFrame
@@ -42,10 +44,6 @@ class Account(ABC):
     locale: str|None
     _importer: Importer|None
     _merger: MergerFn|None
-
-    # Should be overridden by subclasses
-    PROVIDER_ID: ClassVar[str] = 'generic'
-    TRANSACTION_TYPE: ClassVar[type[Transaction]] = Transaction
 
     ##############################################
     # Initialization
@@ -66,7 +64,7 @@ class Account(ABC):
         self._merger = merger
         self.data = self.TRANSACTION_TYPE.to_empty_df()
 
-    def initialize(self, config: Config, archive: Archive):
+    def initialize(self, config: Config):
         """
         Initialize the account with the provided config by loading the data from the archive.
         This function is called by the App object right after the account is defined.
@@ -76,7 +74,6 @@ class Account(ABC):
             self.locale = config.locale
         if self.currency is None:
             self.currency = config.currency
-        self.load_all_from_archive(archive)
 
     @property
     def importer(self) -> Importer:
@@ -153,7 +150,8 @@ class Account(ABC):
     # Importing (defers to the Importer)
     ##############################################
 
-    def import_file(self, archive: Archive, file: Path, date_range: DateRange|None) -> ImportContext:
+    def import_file(self, archive: Archive, file: Path, date_range: DateRange|None,
+                    executor: Executor[ImportContext, pd.DataFrame]) -> ImportContext:
         # Calculate the archive ID and infer the date range
         importer = self.importer
         if date_range is None:
@@ -162,7 +160,8 @@ class Account(ABC):
 
         # Import the file
         with open(file, 'rb') as f:
-            import_context = ImportContext(self, archive, archive_id, date_range)
+            import_context = ImportContext(self, archive, archive_id,
+                date_range, file.name, self.importer.info.id, executor=executor)
             df = importer.import_file(import_context, f)
             import_context.importer_id = importer.info.id
 
@@ -171,8 +170,8 @@ class Account(ABC):
         self.data = pd.concat([self.data, df])
         return import_context
 
-    def archive_file(self, archive: Archive, buffer: IO[bytes],
-                     filename: str, date_range: DateRange|None) -> ImportContext:
+    def archive_file(self, archive: Archive, buffer: IO[bytes], filename: str,
+                     date_range: DateRange|None, executor: Executor[ImportContext, pd.DataFrame]) -> ImportContext:
         # Calculate the archive ID and infer the date range
         importer = self.importer
         if date_range is None:
@@ -180,7 +179,8 @@ class Account(ABC):
         archive_id, _ = archive.calculate_archive_id(self.id, date_range)
 
         # Import the file
-        import_context = ImportContext(self, archive, archive_id, date_range)
+        import_context = ImportContext(self, archive, archive_id, date_range,
+            filename, self.importer.info.id, executor=executor)
         df = importer.import_file(import_context, buffer)
         import_context.importer_id = importer.info.id
 

@@ -35,8 +35,8 @@ class Unicredit(BankAccount):
         super().__init__(id, name=name, iban=iban, locale=locale, card_last_4_digits=card_last_4_digits, importer=importer, merger=merger)
         self.currency = currency
 
-    def initialize(self, config: Config, archive: Archive) -> None:
-        super().initialize(config, archive)
+    def initialize(self, config: Config) -> None:
+        super().initialize(config)
         if self.currency is None:
             self.currency = config.currency
 

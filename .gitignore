@@ -82,3 +82,6 @@ $RECYCLE.BIN/
 # Custom
 /tmp
 /test
+
+.vscode
+!.vscode/settings.json

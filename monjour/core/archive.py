@@ -7,10 +7,10 @@ from typing import IO, TypeAlias, TypedDict, TYPE_CHECKING
 
 import monjour.core.log as log
 from monjour.core.common import DateRange
+from monjour.core.constants import MONJOUR_VERSION
 
 if TYPE_CHECKING:
-    from monjour.core.config import Config
-    from monjour.core.importer import ImporterInfo, ImportContext
+    from monjour.core.importer import ImportContext
 
 ArchiveID: TypeAlias = str
 
@@ -46,23 +46,21 @@ class Archive:
     To get the file contents, an Importer calls the load_file method with the archive_id. The file is
     read from the archive directory and returned as bytes.
     """
-    version = '1.0'
+    version = MONJOUR_VERSION
 
     # Still not sure records should be a dataframe instead of a dict
     records: dict[str, ArchiveRecord]
-    config: "Config"
-    archive_file_path: Path
+    archive_dir: Path
+    archive_json_path: Path
 
-    def __init__(self, config: "Config"):
-        self.config = config
-
-        # Load the archive table from disk or create a new one if it doesn't exist
-        self.archive_file_path = Path(config.archive_dir) / 'archive.json'
-        if not self.archive_file_path.exists():
-            self.records = {}
-            self.save()
+    def __init__(self, archive_dir: Path|str):
+        if isinstance(archive_dir, str):
+            self.archive_dir = Path(archive_dir)
         else:
-            self.load()
+            self.archive_dir = archive_dir
+        # Load the archive table from disk or create a new one if it doesn't exist
+        self.archive_json_path = self.archive_dir / 'archive.json'
+        self.records = {}
 
     @staticmethod
     def calculate_file_hash(buf: IO[bytes]) -> str:
@@ -169,13 +167,10 @@ class Archive:
 
         # Calculate the new filename
         archive_path = f"{import_ctx.account.id}/{import_ctx.archive_id}.{extension}"
-        full_path = Path(self.config.archive_dir) / archive_path
+        full_path = self.archive_dir / archive_path
 
         # Copy the file to the archive directory
-        full_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(full_path, 'wb') as f:
-            file.seek(0)
-            f.write(file.read())
+        self._write(full_path, file)
         log.info(f"File '{archive_path}' copied to archive")
 
         # Note that we only pass filename to be saved in the 'file_path' field
@@ -271,13 +266,11 @@ class Archive:
         # Read file from disk
         if record['is_managed_by_archive']:
             # Records managed by the archive only save the file name in the 'file_path' field
-            file_path = Path(self.config.archive_dir) / record['file_path']
+            file_path = self.archive_dir / record['file_path']
         else:
             # Extenral records save the full path in the 'file_path' field
             file_path = Path(record['file_path'])
-        if not file_path.exists():
-            raise FileNotFoundError(f'File {file_path} not found in archive')
-        file_contents = file_path.read_bytes()
+        file_contents = self._read(file_path)
 
         if check_hash:
             file_hash = hashlib.md5(file_contents).hexdigest()
@@ -296,6 +289,19 @@ class Archive:
         log.info(f"Forgotten file '{archive_id}'")
 
     ########################################################
+    # Implementation of filesystem I/O
+    ########################################################
+
+    def _write(self, dest: Path, data: IO[bytes]):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        with open(dest, 'wb') as f:
+            data.seek(0)
+            f.write(data.read()) 
+
+    def _read(self, src: Path) -> bytes:
+        return src.read_bytes()
+
+    ########################################################
     # Archive metadata management
     ########################################################
 
@@ -309,28 +315,57 @@ class Archive:
                 return obj.isoformat()  # Convert datetime to string
             raise TypeError(f"Type {type(obj)} not serializable")
 
-        path = filepath or self.archive_file_path
+        path = filepath or self.archive_json_path
         archive_info: ArchiveInfo = {
             'records': self.records,
             'archiver_version': self.version
         }
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, 'w') as f:
-            json.dump(archive_info, f, default=custom_serializer, indent=4)
+        json_str = json.dumps(archive_info, default=custom_serializer, indent=4)
+        self._write(path, io.BytesIO(json_str.encode()))
 
     def load(self, filepath: Path|None=None):
         """
         Load the archive state from disk.
         """
-        path = filepath or self.archive_file_path
-        with open(path, 'r') as f:
-            archive_info: ArchiveInfo = json.load(f)
-            if archive_info['archiver_version'] != self.version:
-                raise Exception(f'Archive version mismatch. Expected {self.version}, got {archive_info["archiver_version"]}')
-            # Invidivual records need some processing
-            for record in archive_info['records'].values():
-                record['imported_date'] = dt.datetime.fromisoformat(record['imported_date']) # type: ignore
-                record['date_start']    = dt.datetime.fromisoformat(record['date_start']) # type: ignore
-                record['date_end']      = dt.datetime.fromisoformat(record['date_end']) # type: ignore
-            self.records = archive_info['records']
+        path = filepath or self.archive_json_path
+        if not path.exists():
+            return
+        buf = self._read(path)
+        archive_info: ArchiveInfo = json.loads(buf)
+        if archive_info['archiver_version'] != self.version:
+            raise Exception(f'Archive version mismatch. Expected {self.version}, got {archive_info["archiver_version"]}')
+        # Invidivual records need some processing
+        for record in archive_info['records'].values():
+            record['imported_date'] = dt.datetime.fromisoformat(record['imported_date']) # type: ignore
+            record['date_start']    = dt.datetime.fromisoformat(record['date_start']) # type: ignore
+            record['date_end']      = dt.datetime.fromisoformat(record['date_end']) # type: ignore
+        self.records = archive_info['records']
 
+
+class InMemoryArchive(Archive):
+    """
+    An in-memory archive mostly for testing and debugging.
+    This archive should behave exactly like a regular archive but it doesn't write to disk.
+    """
+    fs: dict[str, bytes]
+
+    def __init__(self, archive_dir: Path|str):
+        super().__init__(archive_dir)
+        self.fs = {}
+
+    def _write(self, dest: Path, data: IO[bytes]):
+        self.fs[str(dest)] = data.read()
+
+    def _read(self, src: Path) -> bytes:
+        return self.fs[str(src)]
+
+class WriteOnlyArchive(Archive):
+    """
+    An archive that doesn't read files from disk. Useful only for testing and debugging.
+    """
+    def _read(self, src: Path) -> bytes:
+        raise NotImplementedError('WriteOnlyArchive does not support reading files')
+
+    def _write(self, dest: Path, data: IO[bytes]):
+        pass

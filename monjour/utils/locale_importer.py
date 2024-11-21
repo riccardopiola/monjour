@@ -112,7 +112,7 @@ def _get_available_importers(account) -> list[ImporterInfo]:
 
 def _set_importer(account, importer: Importer | str) -> Importer:
     if isinstance(importer, str):
-        account._importer = account._locale_helper.load_importer(importer)()
+        account._importer = account._locale_helper.load(importer)()
     else:
         account._importer = importer
     return account._importer

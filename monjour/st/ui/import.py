@@ -1,11 +1,11 @@
 import streamlit as st
 import datetime as dt
-from monjour.st import StApp
+from monjour.st import get_st_app
 from monjour.core.common import DateRange
 
 import monjour.core.log as log
 
-st_app = StApp(st.session_state.project_dir)
+st_app = get_st_app(st.session_state.project_dir)
 
 st.write('### Import a new file')
 # Create a dropdown menu

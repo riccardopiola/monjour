@@ -13,7 +13,7 @@ if args.streamlit:
     import streamlit.web.cli as stcli
     import streamlit as st
 
-    app_entry_file = os.path.join( os.path.dirname(__file__), 'st_main.py')
+    app_entry_file = os.path.join( os.path.dirname(__file__), 'st', 'st_main.py')
     sys.argv = ["streamlit", "run", app_entry_file]
 
     # This will start the server on this thread and

@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 
-from monjour.st import StApp
+from monjour.st import get_st_app
 
-st_app = StApp(st.session_state.project_dir)
+st_app = get_st_app(st.session_state.project_dir)
 archive = st_app.app.archive
 
 st.title('Archive')

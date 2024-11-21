@@ -2,6 +2,7 @@ import re
 
 from monjour.core.importer import *
 from monjour.core.transaction import PaymentType
+from monjour.core.transformation import transformer
 from monjour.utils.regex_parser import RegexParser
 
 import monjour.providers.generic.importers.csv_importer as csv_importer
@@ -33,7 +34,7 @@ PARSER.add_case(UnicreditCategory.COMMISSIONS_FEES, _unic_common(
     r"COMMISSIONI - PROVVIGIONI - SPESE", allow_extras=True))
 
 PARSER.add_case(UnicreditCategory.FIXED_MONTHLY_COST, _unic_common(
-    r"MY GENIUS",  r"COSTO FISSO MESE DI {month:str}", allow_extras=True))
+    r"MY GENIUS  COSTO FISSO MESE DI {month:str}", allow_extras=True))
 
 PARSER.add_case(UnicreditCategory.TAXES, _unic_common(
     r"IMPOSTA", allow_extras=True))
@@ -80,16 +81,17 @@ PARSER.add_case(UnicreditCategory.UNKNOWN, r" {unic_id}.*")
 # Middlewares
 #####################################
 
-def add_unicredit_category(df: pd.DataFrame, ctx: ImportContext) -> pd.DataFrame:
+@transformer()
+def add_unicredit_category(ctx: ImportContext, df: pd.DataFrame) -> pd.DataFrame:
     PARSER.build()
     def process_row(row):
         # Limit multiple spaces to three
-        desc = re.sub(r'\s\s+', '   ', row['unicredit_original_desc'])
+        desc = re.sub(r'\s\s\s+', '   ', row['unicredit_original_desc'])
         result = PARSER.parse(desc)
         if result is None:
             # The regex match for UnicreidtCategory.UNKNOWN is very permissive. If we reach this point
             # it means the file is not of the correct format or it is malformed
-            raise ValueError(f'Invalid Unicredit transaction: {row}')
+            raise ValueError(f'Invalid Unicredit transaction: (csv_row: {row['csv_prev_index']}) {desc}')
         category, values = result
         row['unicredit_id'] = values['unic_id']
         row['unicredit_category'] = category.value
@@ -134,7 +136,8 @@ def add_unicredit_category(df: pd.DataFrame, ctx: ImportContext) -> pd.DataFrame
     new_df = df.apply(process_row, axis=1)
     return new_df # type: ignore
 
-def add_currency_info(df: pd.DataFrame, ctx: ImportContext) -> pd.DataFrame:
+@transformer()
+def add_currency_info(ctx: ImportContext, df: pd.DataFrame) -> pd.DataFrame:
     """
     Create a new column 'currency' in the dataframe with the currency of the sheet
     """
@@ -157,34 +160,33 @@ UNICREDIT_IT_COLUMN_MAPPING = {
 UNICREDIT_IT_COLUMN_DTYPES = UnicreditTransaction.to_pd_dtype_dict()
 
 @importer(locale='it_IT', v='1.0')
-class UnicreditImporter(Importer):
+class UnicreditImporter(csv_importer.CSVImporter):
 
-    def import_file(
-        self,
-        ctx: ImportContext,
-        file: IO[bytes],
-    ) -> pd.DataFrame:
-        df = pd.read_csv(file, sep=';', decimal=',', thousands='.',
-            parse_dates=['Data Registrazione', 'Data valuta'], dayfirst=True)
+    csv_args = {
+        'sep': ';',
+        'decimal': ',',
+        'thousands': '.',
+        'parse_dates': ['Data Registrazione', 'Data valuta'],
+        'dayfirst': True
+    }
 
-        df = csv_importer.add_archive_id(df, ctx)
-        df = csv_importer.add_empty_category_column(df, ctx)
-        df = csv_importer.create_deterministic_index(df, ctx)
-        df = csv_importer.rename_columns(UNICREDIT_IT_COLUMN_MAPPING)(df, ctx)
-        df = csv_importer.cast_columns(UNICREDIT_IT_COLUMN_DTYPES)(df, ctx)
-        df = add_currency_info(df, ctx)
-        df = add_unicredit_category(df, ctx)
-        df = csv_importer.remove_useless_columns(df, ctx)
-
-        return df
+    csv_transformers = [
+        csv_importer.add_archive_id,
+        csv_importer.add_empty_category_column,
+        csv_importer.create_deterministic_index,
+        csv_importer.rename_columns(UNICREDIT_IT_COLUMN_MAPPING),
+        csv_importer.cast_columns(UNICREDIT_IT_COLUMN_DTYPES),
+        add_currency_info,
+        add_unicredit_category,
+        csv_importer.remove_useless_columns
+    ]
 
     def try_infer_daterange(
         self,
         file: IO[bytes],
         filename: str|None=None,
     ) -> DateRange | None:
-        df = pd.read_csv(file, sep=';', decimal=',', thousands='.', usecols=['Data valuta'],
-            parse_dates=['Data valuta'], dayfirst=True)
+        df = pd.read_csv(file, **self.csv_args)
         if 'Data valuta' not in df.columns:
             return None
         return DateRange(

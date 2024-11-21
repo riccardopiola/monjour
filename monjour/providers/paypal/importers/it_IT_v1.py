@@ -1,6 +1,7 @@
 import pandas as pd
 
 from monjour.core.importer import *
+from monjour.core.transformation import transformer
 
 from monjour.providers.paypal.paypal_types import PaypalTransactionType
 import monjour.providers.paypal.importers.generic_v1 as paypal_common
@@ -41,22 +42,18 @@ TRANSACTION_TYPE_MAPPING = {
 }
 
 @importer(v='1.0', locale="it_IT")
-class PayPalImporter(Importer):
-    def import_file(
-        self,
-        ctx: ImportContext,
-        file: IO[bytes],
-    ) -> pd.DataFrame:
-        df = pd.read_csv(file, decimal=',')
+class PayPalImporter(csv_importer.CSVImporter):
 
-        df = csv_importer.add_archive_id(df, ctx)
-        df = csv_importer.add_empty_category_column(df, ctx)
-        df = csv_importer.create_deterministic_index(df, ctx)
-        df = csv_importer.rename_columns(COLUMN_MAPPING)(df, ctx)
-        df = paypal_common.paypal_cast_columns(df, ctx)
-        df = paypal_common.combine_date_hour(df, ctx)
-        df = paypal_common.map_paypal_transaction_type(TRANSACTION_TYPE_MAPPING)(df, ctx)
-        df = csv_importer.remove_useless_columns(df, ctx)
+    csv_args = { 'decimal': ',' }
 
-        return df
+    csv_transformers = [
+        csv_importer.add_archive_id,
+        csv_importer.add_empty_category_column,
+        csv_importer.create_deterministic_index,
+        csv_importer.rename_columns(COLUMN_MAPPING),
+        paypal_common.paypal_cast_columns,
+        paypal_common.combine_date_hour,
+        paypal_common.map_paypal_transaction_type(TRANSACTION_TYPE_MAPPING),
+        csv_importer.remove_useless_columns
+    ]
 
