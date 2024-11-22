@@ -32,8 +32,8 @@ def show_diff(df1: pd.DataFrame, df2: pd.DataFrame):
     df = pd.merge(df2, df1[removed_cols], how='outer', left_index=True, right_index=True) # type:ignore
     df.loc[removed_rows] = df1.loc[removed_rows] # type:ignore
 
-    aligned_df1 = df1.loc[common_rows, common_columns].reindex(index=common_rows, columns=common_columns)
-    aligned_df2 = df2.loc[common_rows, common_columns].reindex(index=common_rows, columns=common_columns)
+    aligned_df1 = df1.loc[common_rows, common_columns].reindex(index=common_rows, columns=common_columns) # type:ignore
+    aligned_df2 = df2.loc[common_rows, common_columns].reindex(index=common_rows, columns=common_columns) # type:ignore
 
     changes = aligned_df1 != aligned_df2
 
@@ -60,6 +60,9 @@ def show_diff(df1: pd.DataFrame, df2: pd.DataFrame):
 
     styled_df = df.style.apply(apply_style, axis=None)
     st.write('### Output diff')
-    # print(styled_df)
     st.dataframe(styled_df)
 
+    # from streamlit_extras.dataframe_explorer import dataframe_explorer
+    # filtered_df = dataframe_explorer(df)
+    # styled_df = filtered_df.style.apply(apply_style, axis=None)
+    # st.dataframe(styled_df)

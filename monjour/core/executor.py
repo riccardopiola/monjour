@@ -50,15 +50,20 @@ class Executor(ABC, Generic[Ctx, Val]):
     def reset(self):
         ...
 
+    def get_last_result(self) -> Val|None:
+        ...
+
 #################################################
 # DeferredExecutor
 #################################################
 
 class DeferredExecutor(Executor[Ctx, Val]):
     last_block: ExecutionBlock[Ctx, Val]|None = None
+    last_result: Val|None = None
 
     def __init__(self):
         self.last_block = None
+        self.last_result = None
 
     def enter(
         self,
@@ -66,6 +71,7 @@ class DeferredExecutor(Executor[Ctx, Val]):
         initial_args: tuple[Ctx, Val],
     ) -> ExecutionBlock:
         self.last_block = ExecutionBlock(name, initial_args)
+        self.last_result = None
         return self.last_block
 
     def run(self, block: ExecutionBlock[Ctx, Val]|None = None) -> Val:
@@ -79,12 +85,15 @@ class DeferredExecutor(Executor[Ctx, Val]):
     def _run_impl(self, block: ExecutionBlock[Ctx, Val]) -> Val:
         args = block.initial_args
         for transformer in block.transformation_decls:
-            result = transformer.fn(*args)
-            args = (args[0], result)
+            self.last_result = transformer.fn(*args)
+            args = (args[0], self.last_result)
         return args[1]
 
     def reset(self):
         self.last_block = None
+
+    def get_last_result(self) -> Val | None:
+        return self.last_result
 
 #################################################
 # ImmediateExecutor
@@ -112,7 +121,6 @@ class ImmediateExecutionBlock(ExecutionBlock, Generic[Ctx, Val]):
         result = transformer.fn(*self.args)
         self.args = (self.args[0], result)
         return result
-
 class ImmediateExecutor(Executor, Generic[Ctx, Val]):
     last_block: ImmediateExecutionBlock|None = None
 
@@ -133,3 +141,8 @@ class ImmediateExecutor(Executor, Generic[Ctx, Val]):
 
     def reset(self):
         self.last_block = None
+
+    def get_last_result(self) -> Any | None:
+        if self.last_block is None:
+            return None
+        return self.last_block.last_result

@@ -1,4 +1,5 @@
 import re
+import json
 
 from monjour.core.importer import *
 from monjour.core.transaction import PaymentType
@@ -105,15 +106,14 @@ def add_unicredit_category(ctx: ImportContext, df: pd.DataFrame) -> pd.DataFrame
                     row['unicredit_category'] = UnicreditCategory.ECOMMERCE.value
                 else:
                     row['payment_type'] = PaymentType.CardPayment.value
-                row['payment_type_details'] = {
+                row['payment_type_details'] = json.dumps({
                     'card': values['card'],
                     'provider': values['payment_provider'], # maybe move this to extras
-                }
-                row['extra'] = {
-                    'original_date': values['original_date'],
+                })
+                row['extra'] = json.dumps({
                     'original_amount': values['amount'],
                     'original_currency': values['currency']
-                }
+                })
                 row['counterpart'] = values['counterpart']
                 row['location'] = values['location']
                 row['unicredit_original_date'] = values['original_date']

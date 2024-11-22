@@ -41,7 +41,7 @@ The following transformations have not been applied:
     c1, c2 = st.columns(2)
     transformation = c1.radio('Examine a transformation', executor.last_block.transformations,
         format_func=lambda t: t.name)
-    show_inout = c2.toggle('Show input/output', True)
+    show_inout = c2.toggle('Show input/output', False)
     show_comparison = c2.toggle('Show comparison', True)
     do_drop_empty_cols = c2.toggle('Drop empty columns', False)
     show_all = c2.toggle('Show all', False)
@@ -54,11 +54,14 @@ The following transformations have not been applied:
     output: pd.DataFrame = transformation.result
 
     if show_inout:
+        inout_in = input
+        inout_out = output
         if do_drop_empty_cols:
             inout_in = input.dropna(axis=1, how='all')
             inout_out = output.dropna(axis=1, how='all')
-        inout_in = df_show_first(input, n=n,enable=not show_all)
-        inout_out = df_show_first(output, n=n,enable=not show_all)
+        if not show_all:
+            inout_in = inout_in.head(n)
+            inout_out = inout_out.head(n)
         (c1, c2) = st.columns(2)
         c1.write("#### Input")
         c1.dataframe(inout_in)
@@ -74,33 +77,29 @@ debug_what = st.radio('Process to debug', ['Import'], index=0, horizontal=True)
 if debug_what == 'Import':
     debug_app = _app_for_import()
     fatal_error = None
-    if not 'executor' in st.session_state:
-        st.session_state.executor = DebugExecutor()
+    if not 'debug_executor' in st.session_state:
+        st.session_state.debug_executor = DebugExecutor()
     with st.container(border=True):
         if (options := file_import_options(debug_app)) is not None:
-            left, middle, right = st.columns(3)
-            if left.button('Reset', use_container_width=True):
-                st.session_state.executor.reset()
-            if middle.button('Clear Archive', use_container_width=True):
-                debug_app.app.archive = WriteOnlyArchive('/')
-            if right.button('Debug Import', type='primary', use_container_width=True):
+            c1, c2 = st.columns(2)
+            if c1.button('Reset', use_container_width=True, key='debug-reset'):
+                st.session_state.debug_executor.reset()
+            if c2.button('Debug Import', type='primary', use_container_width=True):
                 with st.spinner('Importing...'):
-                    st.session_state.executor.reset()
+                    st.session_state.debug_executor.reset()
                     try:
                         debug_app.app._archive_file(
                             account_id=options.account.id,
                             file=options.file,
                             filename='debug',
                             date_range=options.date_range,
-                            executor=st.session_state.executor,
+                            executor=st.session_state.debug_executor,
                         )
                     except Exception as e:
                         fatal_error = e
     # Try to display the debug context even if an error occurred
-    display_debug_ctx(st.session_state.executor)
+    display_debug_ctx(st.session_state.debug_executor)
     if fatal_error is not None:
         st.error("Import failed due to a fatal error")
         raise fatal_error
-    elif st.session_state.executor.last_block is not None:
-        st.success('Imported successfully')
 

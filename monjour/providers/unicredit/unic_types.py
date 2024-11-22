@@ -41,6 +41,8 @@ class UnicreditTransaction(Transaction):
     # The original description
     unicredit_original_desc: str
 
+    unicredit_original_date: pd.Timestamp
+
 # class UnicreditPayment(UnicreditTransaction):
 #     unicredit_category: UnicreditCategory.PAYMENT|UnicreditCategory.ECOMMERCE
 #     payment_type: PaymentType.CardPayment|PaymentType.Ecommerce

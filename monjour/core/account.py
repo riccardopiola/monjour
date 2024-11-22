@@ -36,6 +36,7 @@ class Account(ABC):
     # Should be overridden by subclasses
     PROVIDER_ID: ClassVar[str] = 'generic'
     TRANSACTION_TYPE: ClassVar[type[Transaction]] = Transaction
+    COLUMN_ORDER: ClassVar[list[str]] = [ 'date', 'amount', 'currency', 'desc', 'counterpart', 'location' ]
 
     id: str
     data: pd.DataFrame
@@ -236,4 +237,3 @@ class Account(ABC):
         if date_range is None:
             raise ValueError(f'Could not infer date range from file {file}')
         return date_range
-

@@ -65,10 +65,10 @@ class Transaction:
     payment_type: Optional[PaymentType]
 
     # Details related to the payment method
-    payment_type_details: Optional[dict]
+    payment_type_details: Optional[str] # json
 
     # Anything extra that the importer wants to store
-    extra: Optional[dict]
+    extra: Optional[str] # json
 
     # Some transaction (for example refunds) need to reference another transaction
     ref: Optional[str]

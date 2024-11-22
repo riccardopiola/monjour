@@ -38,6 +38,10 @@ class ImportContext(DiagnosticCollector):
         self.executor = executor
         self.extra = extra or dict()
 
+    @property
+    def result(self) -> pd.DataFrame|None:
+        return self.executor.get_last_result()
+
     def copy(self):
         """
         Performs a shallow copy the immutable fields and a deep copy of the mutable fields
@@ -61,15 +65,17 @@ class ImporterInfo:
     importer_class_name: str
     module: str
     friendly_name: str|None
+    supports_executor: bool
 
-    def __init__(self, locale: str, v: str, cls_name: str, module: str,
-                 id: str|None=None, friendly_name: str | None = None):
+    def __init__(self, locale: str, v: str, cls_name: str, module: str, id: str|None=None,
+                 friendly_name: str | None = None, supports_executor: bool = False):
         self.supported_locale = locale
         self.version = v
         self.importer_class_name = cls_name
         self.module = module
         self.friendly_name = friendly_name or f"{cls_name} {locale} v{v}"
         self.id = id or f'{cls_name}_{locale}_v{v}'
+        self.supports_executor = supports_executor
 
     def supports_locale(self, locale: str) -> bool:
         return self.supported_locale == '*' or self.supported_locale == locale
@@ -141,7 +147,7 @@ class Importer(ABC):
     ) -> DateRange|None:
         raise NotImplementedError()
 
-def importer(locale: str, v: str, friendly_name: str | None = None):
+def importer(locale: str, v: str, friendly_name: str | None = None, supports_executor: bool = False):
     """
     Decorator for Importer classes.
     This decorator registers the decorated class as an Importer.
@@ -157,6 +163,7 @@ def importer(locale: str, v: str, friendly_name: str | None = None):
         def __init__(self):
             super(cls, self).__init__()
         cls.__init__ = __init__
-        cls.info = ImporterInfo(locale, v, cls.__name__, cls.__module__, friendly_name=friendly_name)
+        cls.info = ImporterInfo(locale, v, cls.__name__, cls.__module__,
+                                friendly_name=friendly_name, supports_executor=supports_executor)
         return cls
     return decorator

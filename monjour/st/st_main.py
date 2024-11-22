@@ -23,6 +23,8 @@ st_app.app.run()
 # Pages
 ######################################
 
+debug_page = st.Page(st_lib_home / 'ui' / 'debug.py', title="Debug")
+
 home_page = st.Page(st_lib_home / 'ui' / 'home.py', title="Home")
 import_page = st.Page(st_lib_home / 'ui' / 'import.py', title="Import")
 archive_page = st.Page(st_lib_home / 'ui' / 'archive.py', title="Archive")
@@ -35,9 +37,9 @@ user_pages = st_app.find_custom_st_pages()
 ######################################
 
 pg = st.navigation({
-    'Debug': [st.Page(st_lib_home / 'ui' / 'debug.py', title="Debug")],
-    'General': [home_page],
-    'Import': [import_page, archive_page],
+    # **({} if len(user_pages) == 0 else { 'Debug': user_pages })
+    'Debug': [ debug_page],
+    'General': [home_page, import_page, archive_page],
     **({} if len(user_pages) == 0 else { 'Custom Pages': user_pages })
 })
 

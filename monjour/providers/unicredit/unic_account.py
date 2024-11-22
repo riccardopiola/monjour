@@ -20,6 +20,10 @@ class Unicredit(BankAccount):
 
     PROVIDER_ID = 'unicredit'
     TRANSACTION_TYPE = UnicreditTransaction
+    COLUMN_ORDER = [
+        'date', 'amount', 'currency', 'unicredit_category', 'counterpart', 'location',
+        'desc', 'payment_type', 'payment_type_details', 'extra', 'unicredit_original_desc', 'unicredit_registration_date', 'unicredit_id'
+    ]
 
     def __init__(
         self,
