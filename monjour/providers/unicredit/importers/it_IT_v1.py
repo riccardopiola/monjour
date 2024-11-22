@@ -185,10 +185,10 @@ class UnicreditImporter(csv_importer.CSVImporter):
         self,
         file: IO[bytes],
         filename: str|None=None,
-    ) -> DateRange | None:
+    ) -> DateRange:
         df = pd.read_csv(file, **self.csv_args)
         if 'Data valuta' not in df.columns:
-            return None
+            raise ValueError('Failed to infer date range: "Data valuta" column not found')
         return DateRange(
             df['Data valuta'].min().to_pydatetime(),
             df['Data valuta'].max().to_pydatetime()

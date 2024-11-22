@@ -1,6 +1,6 @@
 import pandas as pd
 
-from monjour.core.merge import MergerFn
+from monjour.core.merge import Merger
 from monjour.core.archive import Archive, ArchiveID
 from monjour.core.config import Config
 from monjour.core.importer import Importer, ImporterInfo
@@ -34,7 +34,7 @@ class Unicredit(BankAccount):
         currency:   str|None = None,
         card_last_4_digits: str|None = None,
         importer:   Importer|None = None,
-        merger:     MergerFn|None = None,
+        merger:     Merger|None = None,
     ):
         super().__init__(id, name=name, iban=iban, locale=locale, card_last_4_digits=card_last_4_digits, importer=importer, merger=merger)
         self.currency = currency
@@ -48,7 +48,7 @@ class Unicredit(BankAccount):
     # Override methods
     ##############################################
 
-    def get_default_merger(self) -> MergerFn:
+    def get_default_merger(self) -> Merger:
         from monjour.providers.unicredit.unic_merger import merge_unicredit
         return merge_unicredit
 

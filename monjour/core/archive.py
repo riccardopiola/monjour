@@ -70,16 +70,16 @@ class Archive:
         buf.seek(0)
         return hashlib.md5(buf.read()).hexdigest()
 
+    @staticmethod
+    def calculate_archive_id(account_id: str, date_range: DateRange) -> ArchiveID:
+        """
+        Calculate the archive id for a file based on the account id and the date range.
+        """
+        return f'{account_id}_{date_range.start.strftime("%Y-%m-%d")}_{date_range.end.strftime("%Y-%m-%d")}'
+
     ########################################################
     # Convenience methods
     ########################################################
-
-    def calculate_archive_id(self, account_id: str, date_range: DateRange) -> tuple[ArchiveID, bool]:
-        """
-        Reserve an archive id for a file based on the account id and the date range.
-        """
-        archive_id = f'{account_id}_{date_range.start.strftime("%Y-%m-%d")}_{date_range.end.strftime("%Y-%m-%d")}'
-        return (archive_id, archive_id in self.records)
 
     def get_record(self, archive_id: ArchiveID) -> ArchiveRecord:
         """
@@ -87,21 +87,12 @@ class Archive:
         """
         return self.records[archive_id]
 
-    def get_file_path(self, archive_id: ArchiveID) -> Path:
-        record = self.records[archive_id]
-        folder_path: Path = Path(self.config.archive_dir) / record['account_id'] # type: ignore
-        return folder_path / record['file_name'] # type: ignore
-
     def ensure_hashes_match(self, archive_id: ArchiveID, hash: str):
         """
         Ensure the hash of the file matches the hash in the archive table.
         """
         if hash != self.records[archive_id]['file_hash']:
             raise HashMismatchError(f'File hash does not match for archive id {archive_id}')
-
-    def get_date_range(self, archive_id: ArchiveID) -> DateRange:
-        record = self.records[archive_id]
-        return DateRange(record['date_start'], record['date_end']) # type: ignore
 
     def get_records_for_account(self, account_id: str) -> list[ArchiveRecord]:
         return [record for record in self.records.values() if record['account_id'] == account_id]
@@ -113,7 +104,8 @@ class Archive:
 
     def register_file(
         self,
-        import_ctx: "ImportContext",
+        account_id: str,
+        importer_id: str,
         date_range: DateRange,
         filepath: Path,
     ) -> ArchiveID:
@@ -135,13 +127,14 @@ class Archive:
         """
         with open(filepath, 'rb') as f:
             file_hash = Archive.calculate_file_hash(f)
-        archive_id = self._register_file(import_ctx, date_range, str(filepath), file_hash,
+        archive_id = self._register_file(account_id, importer_id, date_range, str(filepath), file_hash,
                                          is_managed_by_archive=False)
         return archive_id
 
     def archive_file(
         self,
-        import_ctx: "ImportContext",
+        account_id: str,
+        importer_id: str,
         date_range: DateRange,
         file: IO[bytes],
         extension: str, # Extension without the dot
@@ -164,9 +157,10 @@ class Archive:
             HashMismatchError: If the file has already been archived but the hash does not match.
         """
         file_hash = Archive.calculate_file_hash(file)
+        archive_id = Archive.calculate_archive_id(account_id, date_range)
 
         # Calculate the new filename
-        archive_path = f"{import_ctx.account.id}/{import_ctx.archive_id}.{extension}"
+        archive_path = f"{account_id}/{archive_id}.{extension}"
         full_path = self.archive_dir / archive_path
 
         # Copy the file to the archive directory
@@ -175,13 +169,14 @@ class Archive:
 
         # Note that we only pass filename to be saved in the 'file_path' field
         # The full path can be reconstructed by joining the archive_dir and the account_id
-        archive_id = self._register_file(import_ctx, date_range, archive_path, file_hash,
+        archive_id = self._register_file(account_id, importer_id, date_range, archive_path, file_hash,
                                          is_managed_by_archive=True)
         return archive_id
 
     def _register_file(
         self,
-        import_ctx: "ImportContext",
+        account_id: str,
+        importer_id: str,
         date_range: DateRange,
         filepath: str,
         file_hash: str,
@@ -191,11 +186,11 @@ class Archive:
         Internal method to register a file in the archive table.
         If the file has already been archived, it will check the hash and raise an error if it doesn't match.
         """
-        archive_id = import_ctx.archive_id
+        archive_id = Archive.calculate_archive_id(account_id, date_range)
         if archive_id in self.records:
             record = self.records[archive_id]
             if file_hash == record['file_hash']:
-                return self._reimport_file(import_ctx, filepath, file_hash, is_managed_by_archive)
+                return self._reimport_file(archive_id, importer_id, filepath, file_hash, is_managed_by_archive)
             else:
                 raise HashMismatchError(f'File {archive_id} has already been archived but the hash does not match')
 
@@ -203,8 +198,8 @@ class Archive:
         self.records[archive_id] = ArchiveRecord(
             id                = archive_id,
             imported_date     = dt.datetime.now(),
-            importer_id       = import_ctx.importer_id,
-            account_id        = import_ctx.account.id,
+            importer_id       = importer_id,
+            account_id        = account_id,
             file_path         = filepath,
             file_hash         = file_hash,
             date_start        = date_range.start,
@@ -217,7 +212,8 @@ class Archive:
 
     def _reimport_file(
         self,
-        import_ctx: "ImportContext",
+        archive_id: ArchiveID,
+        importer_id: str,
         filepath: str,
         file_hash: str,
         is_managed_by_archive: bool,
@@ -227,20 +223,20 @@ class Archive:
         """
         # Right now the archive is very strict and doesn't allow re-importing files with different hashes
         # We might want to relax this in the future
-        prev = self.records[import_ctx.archive_id]
+        prev = self.records[archive_id]
         if prev['is_managed_by_archive'] != is_managed_by_archive:
-            raise ValueError(f'Cannot re-import file {import_ctx.archive_id} with different management status')
+            raise ValueError(f'Cannot re-import file {archive_id} with different management status')
         if prev['file_hash'] != file_hash:
-            raise ValueError(f'Cannot re-import file {import_ctx.archive_id} with different hash')
-        if prev['importer_id'] != import_ctx.importer_id:
-            import_ctx.diag_warning(f'File {import_ctx.archive_id} was imported with a different importer ({prev['importer_id']}). The record has been updated to the new importer.')
-            prev['importer_id'] = import_ctx.importer_id
+            raise ValueError(f'Cannot re-import file {archive_id} with different hash')
+        if prev['importer_id'] != importer_id:
+            log.warning(f'File {archive_id} was imported with a different importer ({prev['importer_id']}). The record has been updated to the new importer.')
+            prev['importer_id'] = importer_id
         prev['imported_date'] = dt.datetime.now()
         prev['file_path'] = filepath
 
         self.save()
-        log.info(f"File '{import_ctx.archive_id}' was re-imported")
-        return import_ctx.archive_id
+        log.info(f"File '{archive_id}' was re-imported")
+        return archive_id
 
     ########################################################
     # Archive records management

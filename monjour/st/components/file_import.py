@@ -35,7 +35,6 @@ class FileImportOptions:
     date_range: DateRange
     file: IO[bytes]
 
-@st.fragment
 def file_import_options(st_app: StApp):
     (c1, c2) = st.columns(2)
     with c1:

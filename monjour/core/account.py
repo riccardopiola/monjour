@@ -9,7 +9,7 @@ from monjour.core.archive import Archive, ArchiveID
 from monjour.core.common import DateRange
 from monjour.core.config import Config
 from monjour.core.importer import ImportContext, Importer, ImporterInfo
-from monjour.core.merge import MergeContext, MergerFn
+from monjour.core.merge import MergeContext, Merger, BoundMerger
 from monjour.core.transaction import Transaction
 
 class Account(ABC):
@@ -23,6 +23,11 @@ class Account(ABC):
     archive is created and without manually passing the global config around.
     If initialize() is not called, the account object should not be used.
 
+    Class Attributes:
+        PROVIDER_ID:    Unique identifier for the provider of the account.
+        TRANSACTION_TYPE: Type of transactions that the account contains.
+        COLUMN_ORDER:   Alternative order for the columns in the DataFrame (for display purpoises).
+
     Attributes:
         id:         Unique identifier for the account.
         data:       DataFrame containing the transactions.
@@ -30,8 +35,7 @@ class Account(ABC):
         locale:     Optional locale for the account.
         importer:   Optional importer to use to import new files into this account. If not provided,
                     the importer will be automatically selected based on the locale.
-
-        PROVIDER_ID:    Unique identifier for the provider of the account.
+        merger:     Optional merger to use to merge the account data into the master DataFrame.
     """
     # Should be overridden by subclasses
     PROVIDER_ID: ClassVar[str] = 'generic'
@@ -44,7 +48,7 @@ class Account(ABC):
     config: Config
     locale: str|None
     _importer: Importer|None
-    _merger: MergerFn|None
+    _merger: Merger|None
 
     ##############################################
     # Initialization
@@ -56,7 +60,7 @@ class Account(ABC):
         name: str|None = None,
         locale: str|None = None,
         importer: Importer|None = None,
-        merger: MergerFn|None = None,
+        merger: Merger|None = None,
     ):
         self.id = id
         self.name = name
@@ -83,12 +87,7 @@ class Account(ABC):
         return self._importer
 
     @property
-    def merger(self) -> MergerFn:
-        if self._merger is None:
-            self._merger = self.get_default_merger()
-        return self._merger
-
-    def merge(self, ctx: MergeContext, other: pd.DataFrame) -> pd.DataFrame:
+    def merger(self) -> Merger:
         """
         Merge the account data into another DataFrame.
         This method is usually called by App when it merges all the accounts into a single DataFrame.
@@ -100,14 +99,15 @@ class Account(ABC):
             ctx:   MergeContext object containing the accounts to merge.
             other: DataFrame to merge the account data into.
         """
-        return self.merger(ctx, other)
+        if self._merger is None:
+            self._merger = self.get_default_merger()
+        return self._merger
 
     ##############################################
-    # Abstract methods
+    # Merge methods
     ##############################################
 
-    @abstractmethod
-    def get_default_merger(self) -> MergerFn:
+    def get_default_merger(self) -> Merger:
         """
         Merge the account data into another DataFrame.
         This method is usually called by App when it merges all the accounts into a single DataFrame.
@@ -118,7 +118,21 @@ class Account(ABC):
         Args:
             other: DataFrame to merge the account data into.
         """
-        ...
+        return BoundMerger(self.merge_into, type(self), self, "Account.default_merger")
+
+    def merge_into(self, ctx: MergeContext, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Merge the account data into another DataFrame.
+        This method is usually called by App when it merges all the accounts into a single DataFrame.
+
+        The Account class implementing this method is resposible for performing any join or merge operation
+        that is necessary to combine the account data with the other DataFrame.
+
+        Args:
+            ctx:   MergeContext object containing the accounts to merge.
+            other: DataFrame to merge the account data into.
+        """
+        return pd.concat([df, self.data], ignore_index=True)
 
     ##############################################
     # Importer selection methods
@@ -135,6 +149,11 @@ class Account(ABC):
         raise NotImplementedError()
 
     def set_importer(self, importer: Importer|str) -> Importer:
+        """
+        Sets the preferred importer for the account.
+        The base implementation of Account can only set the importer if a full importer object is provided.
+        To support selecting an importer by ID, the subclass should override this method.
+        """
         if isinstance(importer, str):
             if self.importer.info.id == importer:
                 return self.importer
@@ -144,54 +163,45 @@ class Account(ABC):
             return self._importer
 
     def get_available_importers(self) -> list[ImporterInfo]:
+        """
+        Enumerate the available importers for the account.
+        This only return the ImporterInfo objects representing the available importers.
+        To load the importer call set_importer with the ID of the importer (ImporterInfo.id)
+        """
         return [self.importer.info]
-
 
     ##############################################
     # Importing (defers to the Importer)
     ##############################################
 
-    def import_file(self, archive: Archive, file: Path, date_range: DateRange|None,
-                    executor: Executor[ImportContext, pd.DataFrame]) -> ImportContext:
-        # Calculate the archive ID and infer the date range
+    def import_file(self, ctx: ImportContext) -> ImportContext:
         importer = self.importer
-        if date_range is None:
-            date_range = self._infer_daterange_or_raise(importer, file, file.name)
-        archive_id, _ = archive.calculate_archive_id(self.id, date_range)
-
         # Import the file
-        with open(file, 'rb') as f:
-            import_context = ImportContext(self, archive, archive_id,
-                date_range, file.name, self.importer.info.id, executor=executor)
-            df = importer.import_file(import_context, f)
-            import_context.importer_id = importer.info.id
+        filepath = Path(ctx.filename)
+        with open(filepath, 'rb') as f:
+            df = importer.import_file(ctx, f)
+            ctx.importer_id = importer.info.id
+            ctx.result = df
 
         # Register with the archive that we are using an external file
-        archive.register_file(import_context, date_range, file)
+        ctx.archive.register_file(self.id, ctx.importer_id, ctx.date_range, filepath)
         self.data = pd.concat([self.data, df])
-        return import_context
+        return ctx
 
-    def archive_file(self, archive: Archive, buffer: IO[bytes], filename: str,
-                     date_range: DateRange|None, executor: Executor[ImportContext, pd.DataFrame]) -> ImportContext:
-        # Calculate the archive ID and infer the date range
-        importer = self.importer
-        if date_range is None:
-            date_range = self._infer_daterange_or_raise(importer, buffer, filename)
-        archive_id, _ = archive.calculate_archive_id(self.id, date_range)
-
+    def archive_file(self, ctx: ImportContext, buffer: IO[bytes]) -> ImportContext:
         # Import the file
-        import_context = ImportContext(self, archive, archive_id, date_range,
-            filename, self.importer.info.id, executor=executor)
-        df = importer.import_file(import_context, buffer)
-        import_context.importer_id = importer.info.id
+        importer = self.importer
+        df = importer.import_file(ctx, buffer)
+        ctx.importer_id = importer.info.id
+        ctx.result = df
 
         # Save the file in the archive
-        ext = filename.split('.')[-1]
-        archive.archive_file(import_context, date_range, buffer, ext)
+        ext = ctx.filename.split('.')[-1]
+        ctx.archive.archive_file(self.id, ctx.importer_id, ctx.date_range, buffer, ext)
 
         # Merge the new data into the account
         self.data = pd.concat([self.data, df])
-        return import_context
+        return ctx
 
     def load_from_archive(self, archive: Archive, archive_id: ArchiveID, check_hash=False):
         """
@@ -203,9 +213,10 @@ class Account(ABC):
             check_hash: If True, the hash of the file will be checked before loading.
         """
         # Use the importer to read the file into a dataframe
-        date_range = archive.get_date_range(archive_id)
-        buf = archive.load_file(archive_id, check_hash=check_hash)
-        import_context = ImportContext(self, archive, archive_id, date_range)
+        record = archive.get_record(archive_id)
+        buf = archive.load_file(record['id'], check_hash=check_hash)
+        import_context = ImportContext(self, archive, archive_id,
+                    DateRange(record['date_start'], record['date_end']), record['file_path'])
         df = self.importer.import_file(import_context, buf)
         log.info(f"Loaded '{archive_id}' into account '{self.id}'")
         # Merge the new data into the account
@@ -219,21 +230,11 @@ class Account(ABC):
         dfs = []
         archive_records = archive.get_records_for_account(self.id)
         for record in archive_records:
-            date_range = DateRange(record['date_start'], record['date_end'])
             buf = archive.load_file(record['id'], check_hash=check_hash)
-            import_context = ImportContext(self, archive, record['id'], date_range)
+            import_context = ImportContext(self, archive, record['id'],
+                    DateRange(record['date_start'], record['date_end']), record['file_path'])
             df = self.importer.import_file(import_context, buf)
             dfs.append(df)
 
         # Merge all the new data into the account
         self.data = pd.concat([self.data] + dfs)
-
-    def _infer_daterange_or_raise(self, importer: Importer, file: Path|IO[bytes], filename: str) -> DateRange:
-        if isinstance(file, Path):
-            with open(file, 'rb') as f:
-                date_range = importer.try_infer_daterange(f, filename)
-        else:
-            date_range = importer.try_infer_daterange(file, filename)
-        if date_range is None:
-            raise ValueError(f'Could not infer date range from file {file}')
-        return date_range

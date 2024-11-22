@@ -48,6 +48,16 @@ class DateRange:
             end = end - dt.timedelta(seconds=1)
         return DateRange(start=start, end=end)
 
+    @staticmethod
+    def from_strings(start: str, end: str):
+        """
+        Create a DateRange from two strings in the format 'YYYY-MM-DD'.
+        """
+        return DateRange(
+            start=dt.datetime.strptime(start, '%Y-%m-%d'),
+            end=dt.datetime.combine(dt.datetime.strptime(end, '%Y-%m-%d'), dt.time.max)
+        )
+
 def try_infer_daterange_from_filename(filename: str) -> DateRange|None:
     """
     Try to infer the date range from the filename.

@@ -4,7 +4,7 @@ from typing import Any
 
 from monjour.core.archive import InMemoryArchive, WriteOnlyArchive, Archive
 from monjour.core.importer import ImportContext
-from monjour.utils.debug_executor import DebugExecutor, Executor
+from monjour.core.executor import RecordingExecutor
 
 from monjour.st import get_st_app
 from monjour.st.utils import df_drop_empty_columns, df_show_first
@@ -19,27 +19,13 @@ def _app_for_import():
     st_app.app.archive = WriteOnlyArchive('/')
     return st_app
 
-def display_debug_ctx(executor: Executor[Any, pd.DataFrame]):
-    if not isinstance(executor, DebugExecutor):
-        raise Exception('The executor is not a DebugExecutor')
-    if executor.last_block is None:
-        return
-    total_transformations = len(executor.last_block.transformation_decls)
-    transformations_applied = len(executor.last_block.transformations)
-    if total_transformations != transformations_applied:
-        st.warning('Not all transformations have been applied')
-        st.code(f"""\
-Total transformations: {total_transformations}
-Transformations applied: {transformations_applied}
+def display_debug_ctx(executor: RecordingExecutor[Any, pd.DataFrame]):
+    all_transformations = executor.get_all_transformations()
 
-The following transformations have not been applied:
-{'\n'.join([f"- {t.name}" for t in executor.last_block.transformation_decls[transformations_applied:]])}
-        """)
-    else:
-        st.success('All transformations have been applied without errors')
+    st.write("Found transformations" + str(len(all_transformations)))
 
     c1, c2 = st.columns(2)
-    transformation = c1.radio('Examine a transformation', executor.last_block.transformations,
+    transformation = c1.radio('Examine a transformation', all_transformations,
         format_func=lambda t: t.name)
     show_inout = c2.toggle('Show input/output', False)
     show_comparison = c2.toggle('Show comparison', True)
@@ -49,6 +35,7 @@ The following transformations have not been applied:
 
     if transformation is None:
         st.error("Nothing can be shown")
+        return
 
     input: pd.DataFrame = transformation.args[1]
     output: pd.DataFrame = transformation.result
@@ -78,20 +65,20 @@ if debug_what == 'Import':
     debug_app = _app_for_import()
     fatal_error = None
     if not 'debug_executor' in st.session_state:
-        st.session_state.debug_executor = DebugExecutor()
+        st.session_state.debug_executor = RecordingExecutor()
     with st.container(border=True):
         if (options := file_import_options(debug_app)) is not None:
             c1, c2 = st.columns(2)
             if c1.button('Reset', use_container_width=True, key='debug-reset'):
-                st.session_state.debug_executor.reset()
+                st.session_state.debug_executor = RecordingExecutor()
             if c2.button('Debug Import', type='primary', use_container_width=True):
                 with st.spinner('Importing...'):
-                    st.session_state.debug_executor.reset()
+                    st.session_state.debug_executor = RecordingExecutor()
                     try:
                         debug_app.app._archive_file(
                             account_id=options.account.id,
                             file=options.file,
-                            filename='debug',
+                            filename=options.file.name,
                             date_range=options.date_range,
                             executor=st.session_state.debug_executor,
                         )

@@ -101,10 +101,10 @@ class CSVImporter(Importer):
     ) -> pd.DataFrame|None:
         df = pd.read_csv(file, **self.csv_args)
 
-        block = ctx.executor.enter(self.info.id, (ctx, df))
+        block = ctx.executor.new_block((ctx, df))
 
         for transformer in self.csv_transformers:
-            block.enqueue(transformer)
+            block.exec(transformer)
 
-        return ctx.executor.run()
+        return block.last_result
 

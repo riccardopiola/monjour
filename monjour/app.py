@@ -9,7 +9,7 @@ from monjour.core.config import Config
 from monjour.core.account import Account
 from monjour.core.category import Category
 from monjour.core.archive import Archive
-from monjour.core.merge import MergeContext, MergerFn
+from monjour.core.merge import MergeContext, Merger, DEFAULT_MERGE_EXECUTOR
 from monjour.core.importer import ImportContext, DEFAULT_IMPORT_EXECUTOR
 
 class App:
@@ -48,7 +48,7 @@ class App:
         from monjour.replay.app_interactive import AppInteractive
         return AppInteractive(self)
 
-    def import_file(self, account_id: str, file: str|Path, date_range: DateRange|None,
+    def import_file(self, account_id: str, filename: str|Path, date_range: DateRange|None,
                     executor: Executor[ImportContext, pd.DataFrame] = DEFAULT_IMPORT_EXECUTOR):
         """
         Import a file into the account with the given ID.
@@ -62,16 +62,28 @@ class App:
             ValueError: If the account ID is not found.
             ValueError: If the date range cannot be inferred from the filename and none is provided.
         """
-        if isinstance(file, str):
-            file = Path(file)
-        ctx = self.accounts[account_id].import_file(self.archive, file, date_range, executor)
+        if isinstance(filename, Path):
+            filename = str(filename)
+        account = self.accounts[account_id]
+        if date_range is None:
+            with open(filename, 'rb') as f:
+                date_range = account.importer.try_infer_daterange(f, filename)
+        archive_id = Archive.calculate_archive_id(account.id, date_range)
+        ctx = ImportContext(
+            self.accounts[account_id],
+            self.archive,
+            archive_id,
+            date_range=date_range,
+            filename=filename,
+            executor=executor,
+        )
+        ctx = account.import_file(ctx)
         ctx.log_all_diagnostics()
 
     def run(self):
         self.archive.load()
         self.load_all_from_archive()
-        self.combine_accounts()
-        self.categorize()
+        self.merge_accounts()
 
     ##############################################
     # Semi-Public API
@@ -81,8 +93,8 @@ class App:
         for account in self.accounts.values():
             account.load_all_from_archive(self.archive)
 
-    def combine_accounts(self, accounts: list[str]|None = None,
-                         merge_fn: MergerFn|None = None) -> MergeContext:
+    def merge_accounts(self, accounts: list[str]|None = None,
+                       executor: Executor[MergeContext, pd.DataFrame] = DEFAULT_MERGE_EXECUTOR) -> MergeContext|None:
         """
         Create a master account by combining the specified accounts.
 
@@ -90,39 +102,59 @@ class App:
             accounts: List of account IDs to merge. If None, all accounts are merged.
             merge_fn: Optional custom merge function to use instead of the default merge function.
         """
-        df = pd.DataFrame() # Create a new empty DataFrame
-        ctx = MergeContext()
-
-        if len(self.accounts) == 0:
-            log.warning("combine_accounts: No accounts to merge")
-
         # Filter and reorder the accounts to merge
         accounts_to_merge = [ self.accounts[id] for id in accounts or self.accounts.keys() ]
 
-        # Create the merge context
-        ctx.to_merge = accounts_to_merge.copy()
-        # Merge all the accounts in order
-        for account in accounts_to_merge:
-            ctx.advance()
-            # Let the account perform the merge
-            if merge_fn:
-                df = merge_fn(ctx, df)
-            else:
-                df = account.merge(ctx, df)
-        ctx.log_all_diagnostics()
-        return ctx
+        if len(accounts_to_merge) == 0:
+            log.warning("App.merge_accounts: No accounts to merge")
+            return None
 
-    def categorize(self):
-        pass
+        # Setup
+        df = pd.DataFrame() # Start with an empty dataframe
+        ctx = MergeContext(self.categories, accounts_to_merge)
+        block = executor.new_block((ctx, df))
+
+        # Add all the mergers to the execution block, if the executor is an
+        # ImmediateExecutor, this will run the mergers immediately
+        # Otherwise, the mergers will be run when executor.run() is called
+        for account in accounts_to_merge:
+            block.exec(account.merger)
+        self.df = block.last_result
+
+        ctx.log_all_diagnostics()
+        ctx.result = self.df
+        return ctx
 
     ##############################################
     # Private API
     ##############################################
 
-    def _archive_file(self, account_id: str, file: IO[bytes], filename: str, date_range: DateRange|None,
-                    executor: Executor[ImportContext, pd.DataFrame] = DEFAULT_IMPORT_EXECUTOR) -> ImportContext:
+    def _archive_file(
+            self,
+            account_id: str,
+            file: IO[bytes],
+            filename: str,
+            date_range: DateRange|None,
+            executor: Executor[ImportContext, pd.DataFrame] = DEFAULT_IMPORT_EXECUTOR
+    ) -> ImportContext:
         account = self.accounts[account_id]
-        ctx = account.archive_file(self.archive, file, filename, date_range, executor)
+
+        # Infer daterange if not provided
+        if date_range is None:
+            with open(filename, 'rb') as f:
+                date_range = account.importer.try_infer_daterange(f, filename)
+
+        # ArchiveID is deterministic and based on the account ID and the date range
+        archive_id = Archive.calculate_archive_id(account.id, date_range)
+        ctx = ImportContext(
+            self.accounts[account_id],
+            self.archive,
+            archive_id,
+            date_range=date_range,
+            filename=filename,
+            executor=executor,
+        )
+        ctx = account.archive_file(ctx, file)
         ctx.log_all_diagnostics()
         return ctx
 

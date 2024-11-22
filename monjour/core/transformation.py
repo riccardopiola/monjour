@@ -29,6 +29,9 @@ class Transformer(Generic[Ctx, Val]):
         self.name = name or fn.__name__
         self.extra_args = dict(extra_args) if extra_args else {}
 
+    def __call__(self, ctx: Ctx, val: Val) -> Val:
+        return self.fn(ctx, val)
+
 def transformer(name: str|None = None):
     def decorator(fn: Callable[[Ctx, Val], Val]) -> Transformer[Ctx, Val]:
         return Transformer[Ctx, Val](fn, name)

@@ -3,7 +3,7 @@ from enum import Enum
 from monjour.core.account import Account
 from monjour.core.importer import Importer
 from monjour.core.transaction import Transaction
-from monjour.core.merge import MergerFn
+from monjour.core.merge import Merger
 
 class BankAccount(Account):
     """
@@ -22,7 +22,7 @@ class BankAccount(Account):
         iban: str|None = None,
         card_last_4_digits: str|None = None,
         importer: Importer|None = None,
-        merger: MergerFn|None = None,
+        merger: Merger|None = None,
     ):
         super().__init__(id, name=name, locale=locale, importer=importer, merger=merger)
         self.iban = iban

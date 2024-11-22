@@ -4,28 +4,29 @@ from abc import ABC, abstractmethod
 from typing import IO, TYPE_CHECKING
 
 from monjour.utils.diagnostics import DiagnosticCollector
-from monjour.core.executor import Executor, ImmediateExecutor
+from monjour.core.executor import Executor
 
 if TYPE_CHECKING:
     from monjour.core.account import Account
 
 from monjour.core.archive import Archive, DateRange, ArchiveID
 
-DEFAULT_IMPORT_EXECUTOR = ImmediateExecutor["ImportContext", pd.DataFrame]()
+DEFAULT_IMPORT_EXECUTOR = Executor["ImportContext", pd.DataFrame]()
 
 class ImportContext(DiagnosticCollector):
     account: "Account"
     archive: Archive
     archive_id: ArchiveID
-    date_range: DateRange|None = None
-    filename: str|None = None
+    date_range: DateRange
+    filename: str
     importer_id: str|None = None
 
     executor: Executor["ImportContext", pd.DataFrame] = DEFAULT_IMPORT_EXECUTOR
     extra: dict
+    result: pd.DataFrame|None = None
 
     def __init__(self, account: "Account", archive: Archive, archive_id: ArchiveID,
-                 date_range: DateRange|None=None, filename: str|None=None, importer_id: str|None=None,
+                 date_range: DateRange, filename: str, importer_id: str|None=None,
                  executor: Executor["ImportContext", pd.DataFrame]=DEFAULT_IMPORT_EXECUTOR,
                  extra: dict|None=None):
         super().__init__()
@@ -33,14 +34,12 @@ class ImportContext(DiagnosticCollector):
         self.archive = archive
         self.archive_id = archive_id
         self.date_range = date_range
+        if "." not in filename:
+            raise ValueError(f"Filename '{filename}' doesn't have an extension")
         self.filename = filename
         self.importer_id = importer_id
         self.executor = executor
         self.extra = extra or dict()
-
-    @property
-    def result(self) -> pd.DataFrame|None:
-        return self.executor.get_last_result()
 
     def copy(self):
         """
@@ -144,7 +143,7 @@ class Importer(ABC):
         self,
         file: IO[bytes],
         filename: str|None=None,
-    ) -> DateRange|None:
+    ) -> DateRange:
         raise NotImplementedError()
 
 def importer(locale: str, v: str, friendly_name: str | None = None, supports_executor: bool = False):
