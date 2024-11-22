@@ -29,12 +29,6 @@ class Transformer(Generic[Ctx, Val]):
         self.name = name or fn.__name__
         self.extra_args = dict(extra_args) if extra_args else {}
 
-    def record_tranformation(self, ctx: Ctx, df: Val) -> Transformation[Ctx, Val]:
-        # TODO: Fix this my making Ctx, Val bound to SupportDeepCopy or something like that
-        args_copy = (ctx.copy(), df.copy()) # type: ignore
-        result = self.fn(ctx, df)
-        return Transformation(self.name, args_copy, result, **self.extra_args)
-
 def transformer(name: str|None = None):
     def decorator(fn: Callable[[Ctx, Val], Val]) -> Transformer[Ctx, Val]:
         return Transformer[Ctx, Val](fn, name)
