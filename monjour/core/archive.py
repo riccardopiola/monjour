@@ -3,16 +3,19 @@ import io
 import datetime as dt
 import json
 from pathlib import Path
+from enum import Enum
 from typing import IO, TypeAlias, TypedDict, TYPE_CHECKING
 
-import monjour.core.log as log
+from monjour.core.log import MjLogger
 from monjour.core.common import DateRange
-from monjour.core.constants import MONJOUR_VERSION
+from monjour.core.globals import MONJOUR_VERSION
 
 if TYPE_CHECKING:
     from monjour.core.importer import ImportContext
 
 ArchiveID: TypeAlias = str
+
+log = MjLogger(__name__)
 
 class HashMismatchError(Exception):
     pass
@@ -31,6 +34,12 @@ class ArchiveRecord(TypedDict):
 class ArchiveInfo(TypedDict):
     records: dict[str, ArchiveRecord]
     archiver_version: str
+
+class ArchiveOperationResult(Enum):
+    Error = 0
+    Registered = 1
+    Archived = 2
+    Reimported = 3
 
 class Archive:
     """
@@ -71,11 +80,9 @@ class Archive:
         return hashlib.md5(buf.read()).hexdigest()
 
     @staticmethod
-    def calculate_archive_id(account_id: str, date_range: DateRange) -> ArchiveID:
-        """
-        Calculate the archive id for a file based on the account id and the date range.
-        """
-        return f'{account_id}_{date_range.start.strftime("%Y-%m-%d")}_{date_range.end.strftime("%Y-%m-%d")}'
+    def calculate_archive_id(account_id: str, file: IO[bytes]) -> ArchiveID:
+        hash = Archive.calculate_file_hash(file)
+        return f"{account_id}_{hash}"
 
     ########################################################
     # Convenience methods
@@ -102,43 +109,15 @@ class Archive:
     # Archive record import
     ########################################################
 
-    def register_file(
-        self,
-        account_id: str,
-        importer_id: str,
-        date_range: DateRange,
-        filepath: Path,
-    ) -> ArchiveID:
-        """
-        Register a file in the archive table without actually copying it to the archive directory.
-
-        Args:
-            account_id:         Name of the account that the file belongs to.
-            importer_name:      Name of the importer that is importing the file.
-            importer_version:   Version of the importer that is importing the file.
-            date_range:         Date internal of transactions covered by the file.
-            filepath:           Path to the file to register.
-
-        Returns:
-            Archive ID of the file.
-
-        Raises:
-            HashMismatchError: If the file has already been archived but the hash does not match.
-        """
-        with open(filepath, 'rb') as f:
-            file_hash = Archive.calculate_file_hash(f)
-        archive_id = self._register_file(account_id, importer_id, date_range, str(filepath), file_hash,
-                                         is_managed_by_archive=False)
-        return archive_id
-
     def archive_file(
         self,
+        archive_id: ArchiveID,
         account_id: str,
         importer_id: str,
         date_range: DateRange,
         file: IO[bytes],
         extension: str, # Extension without the dot
-    ) -> ArchiveID:
+    ) -> ArchiveOperationResult:
         """
         Archive a file in the archive directory and record the metadata in the archive table.
 
@@ -156,37 +135,37 @@ class Archive:
         Raises:
             HashMismatchError: If the file has already been archived but the hash does not match.
         """
-        file_hash = Archive.calculate_file_hash(file)
-        archive_id = Archive.calculate_archive_id(account_id, date_range)
-
         # Calculate the new filename
         archive_path = f"{account_id}/{archive_id}.{extension}"
         full_path = self.archive_dir / archive_path
 
-        # Copy the file to the archive directory
-        self._write(full_path, file)
-        log.info(f"File '{archive_path}' copied to archive")
-
         # Note that we only pass filename to be saved in the 'file_path' field
         # The full path can be reconstructed by joining the archive_dir and the account_id
-        archive_id = self._register_file(account_id, importer_id, date_range, archive_path, file_hash,
+        result = self.register_file(archive_id, account_id, importer_id, date_range, archive_path,
                                          is_managed_by_archive=True)
-        return archive_id
+        if not result == ArchiveOperationResult.Registered:
+            return result
 
-    def _register_file(
+        # Copy the file to the archive directory
+        self._write(full_path, file)
+        log.info(f"File copied (archive_id: {archive_id}) (path: {archive_path})")
+
+        return ArchiveOperationResult.Archived
+
+    def register_file(
         self,
+        archive_id: ArchiveID,
         account_id: str,
         importer_id: str,
         date_range: DateRange,
         filepath: str,
-        file_hash: str,
-        is_managed_by_archive: bool,
-    ):
+        is_managed_by_archive: bool = False,
+    ) -> ArchiveOperationResult:
         """
         Internal method to register a file in the archive table.
         If the file has already been archived, it will check the hash and raise an error if it doesn't match.
         """
-        archive_id = Archive.calculate_archive_id(account_id, date_range)
+        file_hash = archive_id[len(account_id):]
         if archive_id in self.records:
             record = self.records[archive_id]
             if file_hash == record['file_hash']:
@@ -207,8 +186,8 @@ class Archive:
             is_managed_by_archive= is_managed_by_archive,
         )
         self.save()
-        log.info(f"File '{filepath}' imported with id: {archive_id}")
-        return archive_id
+        log.info(f"File registered (archive_id: {archive_id}) (path: {filepath})")
+        return ArchiveOperationResult.Registered
 
     def _reimport_file(
         self,
@@ -217,7 +196,7 @@ class Archive:
         filepath: str,
         file_hash: str,
         is_managed_by_archive: bool,
-    ) -> ArchiveID:
+    ) -> ArchiveOperationResult:
         """
         A file with the same archive id has already been imported. Check if the new file is the same.
         """
@@ -235,8 +214,8 @@ class Archive:
         prev['file_path'] = filepath
 
         self.save()
-        log.info(f"File '{archive_id}' was re-imported")
-        return archive_id
+        log.info(f"File reimported (archive_id: {archive_id}) (path: {filepath})")
+        return ArchiveOperationResult.Reimported
 
     ########################################################
     # Archive records management

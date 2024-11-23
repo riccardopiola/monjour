@@ -3,13 +3,13 @@ import pandas as pd
 from abc import ABC, abstractmethod
 from typing import IO, TYPE_CHECKING
 
-from monjour.utils.diagnostics import DiagnosticCollector
+from monjour.utils.diagnostics import DiagnosticCollector, Diagnostic
 from monjour.core.executor import Executor
 
 if TYPE_CHECKING:
     from monjour.core.account import Account
 
-from monjour.core.archive import Archive, DateRange, ArchiveID
+from monjour.core.archive import Archive, DateRange, ArchiveID, ArchiveOperationResult
 
 DEFAULT_IMPORT_EXECUTOR = Executor["ImportContext", pd.DataFrame]()
 
@@ -19,17 +19,19 @@ class ImportContext(DiagnosticCollector):
     archive_id: ArchiveID
     date_range: DateRange
     filename: str
-    importer_id: str|None = None
+    importer_id: str
 
     executor: Executor["ImportContext", pd.DataFrame] = DEFAULT_IMPORT_EXECUTOR
     extra: dict
+
     result: pd.DataFrame|None = None
+    archive_operation_result: ArchiveOperationResult|None = None
 
     def __init__(self, account: "Account", archive: Archive, archive_id: ArchiveID,
-                 date_range: DateRange, filename: str, importer_id: str|None=None,
+                 date_range: DateRange, filename: str, importer_id: str,
                  executor: Executor["ImportContext", pd.DataFrame]=DEFAULT_IMPORT_EXECUTOR,
                  extra: dict|None=None):
-        super().__init__()
+        super().__init__(f"ImportContext({account.id}, {importer_id})")
         self.account = account
         self.archive = archive
         self.archive_id = archive_id
@@ -105,7 +107,7 @@ class Importer(ABC):
         self,
         ctx: ImportContext,
         file: IO[bytes],
-    ) -> pd.DataFrame|None:
+    ) -> pd.DataFrame:
         """
         Archive a new file using the provided archiver and return the archive_id.
         This call doesn't require the file to be parsed into a DataFrame.
@@ -121,7 +123,7 @@ class Importer(ABC):
         self,
         ctx: ImportContext,
         file: IO[bytes],
-    ) -> pd.DataFrame|None:
+    ) -> pd.DataFrame:
         """
         Try to import a file and return the archive_id if successful.
         If the file cannot be imported, return None.

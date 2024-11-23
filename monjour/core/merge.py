@@ -34,7 +34,7 @@ class MergeContext(DiagnosticCollector):
 
     def __init__(self, categories: dict[str, Category], accounts_to_merge: list["Account"],
                  extras: dict|None = None):
-        super().__init__()
+        super().__init__('MergeContext')
         self.accounts = accounts_to_merge
         self._cur_account_index = 0
         self.result = None
@@ -65,6 +65,9 @@ class MergeContext(DiagnosticCollector):
         ctx = MergeContext(self.categories, self.accounts, extras=copy.deepcopy(self.extras))
         ctx._cur_account_index = self._cur_account_index
         return ctx
+
+    def _diag_prefix(self) -> str:
+        return self.current_account.id + ' merger: '
 
 # Official type for Merger object. Its really just a wrapper
 # for a fn of type (MergeContext, pd.DataFrame) -> pd.DataFrame

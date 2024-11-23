@@ -17,10 +17,11 @@ class RegexParser(Generic[T]):
         self.cases = {}
         self.re_cases = {}
 
-    def define_class(self, name: str, regex: str):
-        if not re.match(r"^[A-Za-z0-9_]+$", name):
-            raise ValueError("Invalid class name")
-        self.classes[name] = regex
+    def define_classes(self, classes: dict[str, str]):
+        for name, regex in classes.items():
+            if not re.match(r"^[A-Za-z0-9_]+$", name):
+                raise ValueError("Invalid class name")
+            self.classes[name] = regex
 
     def add_case(self, discriminator: T, pattern: str):
         self.cases[discriminator] = pattern

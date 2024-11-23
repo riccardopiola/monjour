@@ -98,7 +98,7 @@ class CSVImporter(Importer):
         self,
         ctx: ImportContext,
         file: IO[bytes],
-    ) -> pd.DataFrame|None:
+    ) -> pd.DataFrame:
         df = pd.read_csv(file, **self.csv_args)
 
         block = ctx.executor.new_block((ctx, df))

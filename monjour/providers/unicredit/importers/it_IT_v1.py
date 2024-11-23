@@ -1,6 +1,7 @@
 import re
 import json
 
+from monjour.core.log import MjLogger
 from monjour.core.importer import *
 from monjour.core.transaction import PaymentType
 from monjour.core.transformation import transformer
@@ -12,15 +13,17 @@ from monjour.providers.unicredit.unic_account import Unicredit
 
 PARSER = RegexParser[UnicreditCategory]()
 
-PARSER.define_class('unic_id', r"\d{15}\,\d{6}")
-PARSER.define_class('ecommerce', r"E-Commerce")
-PARSER.define_class('date', r"\d{2}/\d{2}/\d{4}")
-PARSER.define_class('card', r"\d{4}")
-# Matches anything except 3 consecutive spaces
-PARSER.define_class('str', r"[^\s]+(?:\s\s?[^\s]+)*")
+PARSER.define_classes({
+    'unic_id':      r"\d{15}\,\d{6}",
+    'ecommerce':    r"E-Commerce",
+    'card':         r"\d{4}",
+    'str':          r"[^\s]+(?:\s\s?[^\s]+)*", # Matches anything except 3 consecutive spaces
+    'date':         r"\d{2}/\d{2}/\d{4}"
+})
+
 
 def _unic_common(*patterns, allow_extras=False):
-    pattern = r'\s\s\s+'.join([' {unic_id}', *patterns])
+    pattern = r'\s\s\s+'.join([r'\s*{unic_id}?', *patterns])
     if allow_extras:
         pattern += '.*'
     return pattern
@@ -35,7 +38,7 @@ PARSER.add_case(UnicreditCategory.COMMISSIONS_FEES, _unic_common(
     r"COMMISSIONI - PROVVIGIONI - SPESE", allow_extras=True))
 
 PARSER.add_case(UnicreditCategory.FIXED_MONTHLY_COST, _unic_common(
-    r"MY GENIUS  COSTO FISSO MESE DI {month:str}", allow_extras=True))
+    r"MY GENIUS:?\s+COSTO FISSO MESE DI {month:str}", allow_extras=True))
 
 PARSER.add_case(UnicreditCategory.TAXES, _unic_common(
     r"IMPOSTA", allow_extras=True))
@@ -67,8 +70,8 @@ PARSER.add_case(UnicreditCategory.PHONE_RECHARGE, _unic_common(
 # Income
 #####################################
 PARSER.add_case(UnicreditCategory.INCOMING_TRANSFER, _unic_common(
-    r"BONIFICO A VOSTRO FAVORE .*DA\s+{counterpart:str}.+PER\s+{subject:str}" +
-    r".*TRN\s+{trn:str}.*(?:VA\s+{iban:str})?", allow_extras=True))
+    r"BONIFICO A VOSTRO FAVORE .*DA:?\s+{counterpart:str}.+PER:?\s+{subject:str}" +
+    r".*TRN:?\s+{trn:str}.*(?:VA\s+{iban:str})?", allow_extras=True))
 
 PARSER.add_case(UnicreditCategory.ACCOUNT_RECHARGE, _unic_common(
     r"RICARICA CONTO", allow_extras=True))
@@ -92,8 +95,12 @@ def add_unicredit_category(ctx: ImportContext, df: pd.DataFrame) -> pd.DataFrame
         if result is None:
             # The regex match for UnicreidtCategory.UNKNOWN is very permissive. If we reach this point
             # it means the file is not of the correct format or it is malformed
-            raise ValueError(f'Invalid Unicredit transaction: (csv_row: {row['csv_prev_index']}) {desc}')
-        category, values = result
+            # raise ValueError(f'Invalid Unicredit transaction: (file: {ctx.filename}:{row['csv_prev_index'] + 2}) {desc}')
+            # TODO: Rentroduce this error
+            # log.error(f'Invalid Unicredit transaction: (file: {ctx.filename}:{row['csv_prev_index'] + 2}) {desc}')
+            category, values = UnicreditCategory.UNKNOWN, { 'unic_id': None }
+        else:
+            category, values = result
         row['unicredit_id'] = values['unic_id']
         row['unicredit_category'] = category.value
         row['unicredit_original_desc'] = desc[23:] # Description without unicredit_id
@@ -106,11 +113,9 @@ def add_unicredit_category(ctx: ImportContext, df: pd.DataFrame) -> pd.DataFrame
                     row['unicredit_category'] = UnicreditCategory.ECOMMERCE.value
                 else:
                     row['payment_type'] = PaymentType.CardPayment.value
-                row['payment_type_details'] = json.dumps({
-                    'card': values['card'],
-                    'provider': values['payment_provider'], # maybe move this to extras
-                })
+                row['payment_type_details'] = f"card:{values['card']}"
                 row['extra'] = json.dumps({
+                    'provider': values['payment_provider'],
                     'original_amount': values['amount'],
                     'original_currency': values['currency']
                 })
@@ -126,9 +131,12 @@ def add_unicredit_category(ctx: ImportContext, df: pd.DataFrame) -> pd.DataFrame
             case UnicreditCategory.INCOMING_TRANSFER:
                 row['payment_type'] = PaymentType.Transfer.value
                 row['counterpart'] = values['counterpart']
-                row['desc'] = "Incoming transfer from " + values['counterpart']
+                row['desc'] = "Incoming transfer from " + str(values['counterpart'])
             case UnicreditCategory.UNKNOWN:
-                ctx.diag_debug(f'Unknown transaction: {row['date']} {row['amount']} {row['unicredit_original_desc']}')
+                row['desc'] = row['unicredit_original_desc']
+                ctx.diag_warning("Failed to parse unicredit transaction (file: {file}) (id: {id})",
+                    id=str(row.name),
+                    file=str(ctx.filename) + ':' + str(row['csv_prev_index'] + 2))
             case _:
                 row['desc'] = row['unicredit_original_desc']
         return row

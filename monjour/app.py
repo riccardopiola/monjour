@@ -48,7 +48,7 @@ class App:
         from monjour.replay.app_interactive import AppInteractive
         return AppInteractive(self)
 
-    def import_file(self, account_id: str, filename: str|Path, date_range: DateRange|None,
+    def import_file(self, account_id: str, filename: str|Path, date_range: DateRange|None = None,
                     executor: Executor[ImportContext, pd.DataFrame] = DEFAULT_IMPORT_EXECUTOR):
         """
         Import a file into the account with the given ID.
@@ -65,20 +65,22 @@ class App:
         if isinstance(filename, Path):
             filename = str(filename)
         account = self.accounts[account_id]
-        if date_range is None:
-            with open(filename, 'rb') as f:
-                date_range = account.importer.try_infer_daterange(f, filename)
-        archive_id = Archive.calculate_archive_id(account.id, date_range)
+        importer = account.importer
+
+        with open(filename, 'rb') as f:
+            if date_range is None:
+                date_range = importer.try_infer_daterange(f, filename)
+            archive_id = self.archive.calculate_archive_id(account.id, f)
         ctx = ImportContext(
             self.accounts[account_id],
             self.archive,
             archive_id,
             date_range=date_range,
             filename=filename,
+            importer_id=importer.info.id,
             executor=executor,
         )
         ctx = account.import_file(ctx)
-        ctx.log_all_diagnostics()
 
     def run(self):
         self.archive.load()
@@ -121,7 +123,6 @@ class App:
             block.exec(account.merger)
         self.df = block.last_result
 
-        ctx.log_all_diagnostics()
         ctx.result = self.df
         return ctx
 
@@ -138,24 +139,20 @@ class App:
             executor: Executor[ImportContext, pd.DataFrame] = DEFAULT_IMPORT_EXECUTOR
     ) -> ImportContext:
         account = self.accounts[account_id]
+        importer = account.importer
 
-        # Infer daterange if not provided
-        if date_range is None:
-            with open(filename, 'rb') as f:
-                date_range = account.importer.try_infer_daterange(f, filename)
-
-        # ArchiveID is deterministic and based on the account ID and the date range
-        archive_id = Archive.calculate_archive_id(account.id, date_range)
+        archive_id = self.archive.calculate_archive_id(account.id, file)
+        date_range = date_range or importer.try_infer_daterange(file, filename)
         ctx = ImportContext(
             self.accounts[account_id],
             self.archive,
             archive_id,
             date_range=date_range,
             filename=filename,
+            importer_id=importer.info.id,
             executor=executor,
         )
         ctx = account.archive_file(ctx, file)
-        ctx.log_all_diagnostics()
         return ctx
 
     ##############################################

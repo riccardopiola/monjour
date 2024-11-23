@@ -10,12 +10,12 @@ import streamlit as st
 st_lib_home = Path(os.path.dirname(__file__))
 st.set_page_config(layout='wide')
 
-st.session_state.project_dir = os.path.curdir
-st_app = get_st_app(st.session_state.project_dir)
-
 ######################################
 # App setup
 ######################################
+
+st.session_state.project_dir = os.path.curdir
+st_app = get_st_app(st.session_state.project_dir)
 
 st_app.app.run()
 
@@ -23,7 +23,8 @@ st_app.app.run()
 # Pages
 ######################################
 
-debug_page = st.Page(st_lib_home / 'ui' / 'debug.py', title="Debug")
+debug_page = st.Page(st_lib_home / 'ui' / 'debug' / 'debug.py', title="Debug")
+jupyter_page = st.Page(st_lib_home / 'ui' / 'debug' / 'jupyter.py', title="Jupyter")
 
 home_page = st.Page(st_lib_home / 'ui' / 'home.py', title="Home")
 import_page = st.Page(st_lib_home / 'ui' / 'import.py', title="Import")
@@ -38,7 +39,7 @@ user_pages = st_app.find_custom_st_pages()
 
 pg = st.navigation({
     # **({} if len(user_pages) == 0 else { 'Debug': user_pages })
-    'Debug': [ debug_page],
+    'Debug': [ debug_page, jupyter_page],
     'General': [home_page, import_page, archive_page],
     **({} if len(user_pages) == 0 else { 'Custom Pages': user_pages })
 })

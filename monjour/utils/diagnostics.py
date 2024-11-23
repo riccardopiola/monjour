@@ -1,85 +1,92 @@
 from enum import Enum
 from typing import Any
 from functools import partialmethod
+import logging
 
-import monjour.core.log as log
+from monjour.core.log import MjLogger
 
-class DiagnosticType(Enum):
+class DiagnosticSeverity(Enum):
     Error = 1
     Warning = 2
     Info = 3
     Hint = 4
     Debug = 5
 
-class Diagnostic:
-    type: DiagnosticType
-    msg: str
-    payload: list[Any]
+    def to_logging_int(self) -> int:
+        match self:
+            case DiagnosticSeverity.Error:
+                return logging.ERROR
+            case DiagnosticSeverity.Warning:
+                return logging.WARNING
+            case DiagnosticSeverity.Info:
+                return logging.INFO
+            case DiagnosticSeverity.Hint:
+                return logging.INFO
+            case DiagnosticSeverity.Debug:
+                return logging.DEBUG
 
-    def __init__(self, type: DiagnosticType, msg: str, payload: list[Any] = []):
+class Diagnostic:
+    type: DiagnosticSeverity
+    msg: str
+    args: list[Any]
+    kwargs: dict[str, Any]
+
+    def __init__(self, type: DiagnosticSeverity, msg: str, *args, **kwargs):
         self.type = type
         self.msg = msg
-        self.payload = payload
+        self.args = list(args)
+        self.kwargs = kwargs
 
     def __str__(self):
-        str = self.msg
-        for p in self.payload:
-            str += f" {p}"
+        str = self.msg.format(*self.args, **self.kwargs)
         return str
 
+    def __repr__(self):
+        return f"<Diagnostic {self.type.name}: {self.msg}> {self.args} {self.kwargs}"
+
 class DiagnosticCollector:
+    logger: logging.Logger
     diagnostics: list[Diagnostic]
-    _prefix: str
 
-    def __init__(self, prefix=''):
+    def __init__(self, logger_name: str):
         self.diagnostics = []
-        self._prefix = prefix
+        self.logger = MjLogger(logger_name)
 
-    def set_diag_prefix(self, prefix: str):
-        self._prefix = prefix
+    def _diag_prefix(self) -> str:
+        """To be overridden by subclasses to provide a prefix for diagnostics."""
+        return ''
 
-    def _record_diag_internal(self, diag_type: DiagnosticType, msg: str, *payload: Any):
-        msg = self._prefix + msg
-        self.diagnostics.append(Diagnostic(diag_type, msg, list(payload)))
+    def _record_diag_internal(self, diag_type: DiagnosticSeverity, msg: str, *payload, **kwargs):
+        diag = Diagnostic(diag_type, msg, *payload, **kwargs)
+        self.logger.log(diag_type.to_logging_int(), self._diag_prefix() + str(diag))
+        self.diagnostics.append(Diagnostic(diag_type, msg, *payload, **kwargs))
 
-    diag_error   = partialmethod(_record_diag_internal, DiagnosticType.Error)
-    diag_warning = partialmethod(_record_diag_internal, DiagnosticType.Warning)
-    diag_info    = partialmethod(_record_diag_internal, DiagnosticType.Info)
-    diag_hint    = partialmethod(_record_diag_internal, DiagnosticType.Hint)
-    diag_debug   = partialmethod(_record_diag_internal, DiagnosticType.Debug)
+    diag_error   = partialmethod(_record_diag_internal, DiagnosticSeverity.Error)
+    diag_warning = partialmethod(_record_diag_internal, DiagnosticSeverity.Warning)
+    diag_info    = partialmethod(_record_diag_internal, DiagnosticSeverity.Info)
+    diag_hint    = partialmethod(_record_diag_internal, DiagnosticSeverity.Hint)
+    diag_debug   = partialmethod(_record_diag_internal, DiagnosticSeverity.Debug)
 
-    def has_diag(self, diag_type: DiagnosticType) -> bool:
+    
+
+    def has_diag(self, diag_type: DiagnosticSeverity) -> bool:
         return any(diag.type == diag_type for diag in self.diagnostics)
 
-    def get_diags(self, diag_type: DiagnosticType) -> list[Diagnostic]:
+    def get_diags(self, diag_type: DiagnosticSeverity) -> list[Diagnostic]:
         return [diag for diag in self.diagnostics if diag.type == diag_type]
 
-    def log_all_diagnostics(self):
-        for diag in self.diagnostics:
-            match diag.type:
-                case DiagnosticType.Error:
-                    log.error(diag)
-                case DiagnosticType.Warning:
-                    log.warning(diag)
-                case DiagnosticType.Info:
-                    log.info(diag)
-                case DiagnosticType.Hint:
-                    log.info(diag)
-                case DiagnosticType.Debug:
-                    log.debug(diag)
-
-    def st_show_diagnostics(self, filter: DiagnosticType|None=None):
+    def st_show_diagnostics(self, filter: DiagnosticSeverity|None=None):
         import streamlit as st
         for diag in [d for d in self.diagnostics if filter is None or d.type == filter]:
             match diag.type:
-                case DiagnosticType.Error:
+                case DiagnosticSeverity.Error:
                     st.error(diag)
-                case DiagnosticType.Warning:
+                case DiagnosticSeverity.Warning:
                     st.warning(diag)
-                case DiagnosticType.Info:
+                case DiagnosticSeverity.Info:
                     st.info(diag)
-                case DiagnosticType.Hint:
+                case DiagnosticSeverity.Hint:
                     st.info(diag)
-                case DiagnosticType.Debug:
+                case DiagnosticSeverity.Debug:
                     st.info(diag)
 

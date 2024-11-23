@@ -1,10 +1,7 @@
-from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import IO, Callable, ClassVar, Self
+from typing import IO, ClassVar
 import pandas as pd
 
-import monjour.core.log as log
-from monjour.core.executor import Executor
+from monjour.core.log import MjLogger
 from monjour.core.archive import Archive, ArchiveID
 from monjour.core.common import DateRange
 from monjour.core.config import Config
@@ -12,7 +9,9 @@ from monjour.core.importer import ImportContext, Importer, ImporterInfo
 from monjour.core.merge import MergeContext, Merger, BoundMerger
 from monjour.core.transaction import Transaction
 
-class Account(ABC):
+log = MjLogger(__name__)
+
+class Account:
     """
     Base class representing any list of transactions.
     It is a thin wrapper around a DataFrame that also contains additional logic for:
@@ -134,6 +133,16 @@ class Account(ABC):
         """
         return pd.concat([df, self.data], ignore_index=True)
 
+    def merge_fragment(self, ctx: ImportContext, df: pd.DataFrame):
+        """
+        Method called after an importer has imported a file to merge the new data into the account.
+
+        An account is often the aggregation of multiple files. For example, a bank account can have
+        multiple CSV files relating to different months/years stored separetely in the archive.
+        These records are loaded into the account one by one and merged into the account's DataFrame.
+        """
+        self.data = pd.concat([self.data, df])
+
     ##############################################
     # Importer selection methods
     # only get_default_importer is required to be implemented.
@@ -177,31 +186,38 @@ class Account(ABC):
     def import_file(self, ctx: ImportContext) -> ImportContext:
         importer = self.importer
         # Import the file
-        filepath = Path(ctx.filename)
-        with open(filepath, 'rb') as f:
+        with open(ctx.filename, 'rb') as f:
             df = importer.import_file(ctx, f)
             ctx.importer_id = importer.info.id
             ctx.result = df
 
         # Register with the archive that we are using an external file
-        ctx.archive.register_file(self.id, ctx.importer_id, ctx.date_range, filepath)
-        self.data = pd.concat([self.data, df])
+        ctx.archive_operation_result = ctx.archive.register_file(ctx.archive_id, self.id,
+                                            ctx.importer_id, ctx.date_range, ctx.filename)
+        self.merge_fragment(ctx, df)
         return ctx
 
     def archive_file(self, ctx: ImportContext, buffer: IO[bytes]) -> ImportContext:
         # Import the file
         importer = self.importer
+        buffer.seek(0)
         df = importer.import_file(ctx, buffer)
         ctx.importer_id = importer.info.id
         ctx.result = df
 
         # Save the file in the archive
         ext = ctx.filename.split('.')[-1]
-        ctx.archive.archive_file(self.id, ctx.importer_id, ctx.date_range, buffer, ext)
+        ctx.archive_operation_result = ctx.archive.archive_file(ctx.archive_id, self.id,
+                                            ctx.importer_id, ctx.date_range, buffer, ext)
 
         # Merge the new data into the account
-        self.data = pd.concat([self.data, df])
+        self.merge_fragment(ctx, df)
         return ctx
+
+    def load_all_from_archive(self, archive: Archive, check_hash: bool=False):
+        archive_records = archive.get_records_for_account(self.id)
+        for record in archive_records:
+            self.load_from_archive(archive, record['id'], check_hash=check_hash)
 
     def load_from_archive(self, archive: Archive, archive_id: ArchiveID, check_hash=False):
         """
@@ -215,26 +231,10 @@ class Account(ABC):
         # Use the importer to read the file into a dataframe
         record = archive.get_record(archive_id)
         buf = archive.load_file(record['id'], check_hash=check_hash)
-        import_context = ImportContext(self, archive, archive_id,
-                    DateRange(record['date_start'], record['date_end']), record['file_path'])
-        df = self.importer.import_file(import_context, buf)
-        log.info(f"Loaded '{archive_id}' into account '{self.id}'")
+        importer = self.importer
+        ctx = ImportContext(self, archive, archive_id, DateRange(record['date_start'], record['date_end']),
+                            record['file_path'], importer_id=importer.info.id)
+        df = importer.import_file(ctx, buf)
+        log.info(f"Loaded archived file {archive_id} into account '{self.id}'")
         # Merge the new data into the account
-        self.data = pd.concat([self.data, df])
-
-    def load_all_from_archive(self, archive: Archive, check_hash: bool=False):
-        """
-        Load all the files from the archive that belong to the account.
-        """
-        # Read all the files from the archive with the importer
-        dfs = []
-        archive_records = archive.get_records_for_account(self.id)
-        for record in archive_records:
-            buf = archive.load_file(record['id'], check_hash=check_hash)
-            import_context = ImportContext(self, archive, record['id'],
-                    DateRange(record['date_start'], record['date_end']), record['file_path'])
-            df = self.importer.import_file(import_context, buf)
-            dfs.append(df)
-
-        # Merge all the new data into the account
-        self.data = pd.concat([self.data] + dfs)
+        self.merge_fragment(ctx, df)
