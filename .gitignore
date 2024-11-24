@@ -85,3 +85,6 @@ $RECYCLE.BIN/
 
 .vscode
 !.vscode/settings.json
+/demo/gen/out/*
+/demo/gen/in/*
+/demo/appdata/

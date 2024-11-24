@@ -15,6 +15,7 @@ class UnicreditCategory(Enum):
 
     # Payments
     PAYMENT             = 'Payment'             # 'PAGAMENTO' or 'PAGAMENTO GOOGLE PAY NFC'
+    PAYMENT_ECOMMERCE   = 'Payment ECommerce'   # 'PAGAMENTO E-Commerce'
     OTHER_PAYMENTS      = 'Other Payments'      # 'PAGAMENTI DIVERSI'
     OUTGOING_TRANSFER   = 'Outgoing Transfer'   # 'DISPOSIZIONE DI BONIFICO'
     SEPA_DIRECT_DEBIT   = 'SEPA Direct Debit'   # 'ADDEBITO SEPA DD PER FATTURA A VOSTRO CARICO'

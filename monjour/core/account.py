@@ -76,8 +76,6 @@ class Account:
         self.config = config
         if self.locale is None:
             self.locale = config.locale
-        if self.currency is None:
-            self.currency = config.currency
 
     @property
     def importer(self) -> Importer:

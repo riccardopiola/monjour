@@ -119,34 +119,12 @@ class Importer(ABC):
         """
         ...
 
-    def try_import_file(
-        self,
-        ctx: ImportContext,
-        file: IO[bytes],
-    ) -> pd.DataFrame:
-        """
-        Try to import a file and return the archive_id if successful.
-        If the file cannot be imported, return None.
-
-        Args:
-            file:       Path or buffer to the file to import.
-            date_range: Optional date range to associate with the file.
-
-        Returns:
-            ArchiveID of the imported file if successful,
-
-        Raises:
-            InvalidFileError: If the file cannot be imported.
-            NotImplementedError: If the importer doesn't support this operation.
-        """
-        raise NotImplementedError()
-
     def try_infer_daterange(
         self,
         file: IO[bytes],
         filename: str|None=None,
     ) -> DateRange:
-        raise NotImplementedError()
+        raise NotImplementedError("This importer doesn't support inferring the date range automatically")
 
 def importer(locale: str, v: str, friendly_name: str | None = None, supports_executor: bool = False):
     """

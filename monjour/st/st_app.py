@@ -32,7 +32,7 @@ class StApp:
         if not pages_dir.exists():
             return pages
         for page in list(pages_dir.glob('**/*.py')):
-            pages.append(st.Page(page))
+            pages.append(st.Page(pages_dir / page))
         return pages
 
     def list_all_importers(self) -> dict[str, list[ImporterInfo]]:

@@ -12,13 +12,26 @@ class PaymentType(Enum):
     """
     Certain transactions require special treatment based on the payment type
     """
-    Ecommerce           = 'Ecommerce'
+    # Payment made with a card
     CardPayment         = 'CardPayment'
+
+    # Transfer from/to another external bank account
     Transfer            = 'Transfer'
+
+    # Transfer from/to another account defined in the app
     InternalTransfer    = 'InternalTransfer'
+
+    # Refund of a previous transaction
     Refund              = 'Refund'
+
+    # Withdrawal from the account
     Withdrawal          = 'Withdrawal'
+
+    # Deposit to the account
     Deposit             = 'Deposit'
+
+    # Recurring payment that is automatically debited from the account
+    # e.g. utilities
     PreauthorizedDebit  = 'PreauthorizedDebit'
 
 TransactionID: TypeAlias = str
@@ -32,6 +45,9 @@ class Transaction:
     # The unique identifier for the transaction
     # id: TransactionID
 
+    # Unique identifier for the account that the transaction belongs to
+    account_id: str
+
     # Unique identifier for the file that the transaction was imported from
     archive_id: str
 
@@ -39,16 +55,16 @@ class Transaction:
     # Required fields
     ##############################################
 
-    # Date of the transaction
+    # Date of the transaction (seconds precision)
     date: pd.Timestamp
 
     # Amount of the transaction
-    amount: np.float64
+    amount: float
 
     # Currency of the transaction
     currency: str
 
-    # Description of the transaction (Maybe make this required?)
+    # Description of the transaction
     desc: str
 
     ##############################################
@@ -61,11 +77,12 @@ class Transaction:
     # Geographic location of the transaction|Website address|Phone number?
     location: Optional[str]
 
-    # Special type of the transaction
+    # Special type of the transaction (PaymentType enum)
     payment_type: Optional[PaymentType]
 
     # Details related to the payment method
-    payment_type_details: Optional[str] # json
+    # for example, card:1234 references the card with the last 4 digits 1234
+    payment_type_details: Optional[str]
 
     # Anything extra that the importer wants to store
     extra: Optional[str] # json
@@ -81,6 +98,7 @@ class Transaction:
     notes: Optional[str]
 
     # Category of the transaction
+    # Categories can be nested for example Expenses/Utilities
     category: Optional[str]
 
     # NOTE: This is not an exhaustive list of fields, more fields can be added as needed
@@ -102,6 +120,8 @@ class Transaction:
     ##############################################
     @classmethod
     def to_pd_dtype_dict(cls):
+        if getattr(cls, '_dtype_dict', None):
+            return cls._dtype_dict
         dtypes = {}
         for k, v in cls.get_annotations().items():
             ty = v
@@ -114,7 +134,7 @@ class Transaction:
                 ty = args[0]
             if ty == str:
                 dtypes[k] = 'string'
-            elif ty == np.float64:
+            if ty == float:
                 dtypes[k] = 'float64'
             elif ty == pd.Timestamp:
                 dtypes[k] = 'datetime64[s]'
@@ -122,6 +142,7 @@ class Transaction:
                 dtypes[k] = pd.CategoricalDtype(categories=[c.value for c in ty])
             else:
                 dtypes[k] = 'object'
+        cls._dtype_dict = dtypes
         return dtypes
 
     @classmethod

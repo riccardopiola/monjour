@@ -1,0 +1,1 @@
+from monjour.providers.generic.bank_account import BankAccount

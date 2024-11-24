@@ -23,8 +23,9 @@ def display_debug_ctx(executor: RecordingExecutor[Any, pd.DataFrame]):
     st.write(f"Found {len(all_transformations)} transformations")
 
     c1, c2 = st.columns(2)
-    transformation = c1.radio('Examine a transformation', all_transformations,
-        format_func=lambda t: t.name)
+    transformation_index = c1.radio('Examine a transformation', range(0, len(all_transformations)),
+                                   format_func=lambda i: all_transformations[i].name)
+    transformation = all_transformations[transformation_index]
     show_inout = c2.toggle('Show input/output', True)
     show_comparison = c2.toggle('Show comparison', False)
     do_drop_empty_cols = c2.toggle('Drop empty columns', False)

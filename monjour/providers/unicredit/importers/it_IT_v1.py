@@ -180,7 +180,6 @@ class UnicreditImporter(csv_importer.CSVImporter):
 
     csv_transformers = [
         csv_importer.add_archive_id,
-        csv_importer.add_empty_category_column,
         csv_importer.create_deterministic_index,
         csv_importer.rename_columns(UNICREDIT_IT_COLUMN_MAPPING),
         csv_importer.cast_columns(UNICREDIT_IT_COLUMN_DTYPES),
@@ -194,7 +193,7 @@ class UnicreditImporter(csv_importer.CSVImporter):
         file: IO[bytes],
         filename: str|None=None,
     ) -> DateRange:
-        df = pd.read_csv(file, **self.csv_args)
+        df = pd.read_csv(file, **self.csv_args, usecols=['Data valuta'])
         if 'Data valuta' not in df.columns:
             raise ValueError('Failed to infer date range: "Data valuta" column not found')
         return DateRange(

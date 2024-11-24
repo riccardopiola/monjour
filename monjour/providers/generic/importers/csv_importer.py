@@ -1,7 +1,9 @@
 import pandas as pd
 from typing import IO, Any
 
+from monjour.core.archive import DateRange
 from monjour.core.importer import Importer, importer, ImportContext
+from monjour.core.transaction import Transaction
 from monjour.core.transformation import transformer, Transformer
 
 #########################################
@@ -11,11 +13,6 @@ from monjour.core.transformation import transformer, Transformer
 @transformer()
 def add_archive_id(ctx: ImportContext, df: pd.DataFrame):
     df['archive_id'] = ctx.archive_id
-    return df
-
-@transformer()
-def add_empty_category_column(ctx: ImportContext, df: pd.DataFrame):
-    df['category'] = None
     return df
 
 @transformer()
@@ -56,8 +53,13 @@ def remove_useless_columns(ctx: ImportContext, df: pd.DataFrame) -> pd.DataFrame
     useful_columns = ctx.account.TRANSACTION_TYPE.get_attribute_names()
     return df[useful_columns]
 
+@transformer()
+def warn_if_empty_dataframe(ctx: ImportContext, df: pd.DataFrame) -> pd.DataFrame:
+    if len(df) == 0:
+        ctx.diag_warning("Empty DataFrame after applying all transformers")
+    return df
 
-@importer(locale="*", v='1.0')
+@importer(locale="en_US", v='1.0')
 class CSVImporter(Importer):
     """
     A generic CSV importer that loads a CSV file into a DataFrame and applies a list of middlewares.
@@ -65,13 +67,14 @@ class CSVImporter(Importer):
     inherits from this class (for example PayPalImporter) can be defined in a simple, declarative way.
 
     Example:
+    @importer(locale="*", v='1.0')
     class MyCSVImporter(CSVImporter):
         name = 'my-csv-importer'
         version = '1.0'
         csv_args = {
             'delimiter': ';'
         }
-        csv_import_transformers = [
+        csv_transformers = [
             rename_columns({
                 'Amount': 'amount'
             }),
@@ -80,19 +83,26 @@ class CSVImporter(Importer):
             }),
             my_custom_middleware
         ]
-
-    CSV Middlewares are functions that take the Account and the imported Dataframe as arguments, perform
-    some operations on the DataFrame and return the modified DataFrame to be passed to the next middleware.
     """
 
-    csv_args: dict[str, Any] = {}
+    csv_args: dict[str, Any] = {
+        'sep': ',',
+        'decimal': '.',
+        'parse_dates': [ 'date' ],
+    }
 
     csv_transformers: list[Transformer] = [
         add_archive_id,
-        add_empty_category_column,
         create_deterministic_index,
-        remove_useless_columns
+        cast_columns(Transaction.to_pd_dtype_dict()),
+        remove_useless_columns,
+        warn_if_empty_dataframe
     ]
+
+    def __init__(self, csv_args_overrides: dict[str, str]|None = None):
+        super().__init__()
+        if csv_args_overrides is not None:
+            self.csv_args.update(csv_args_overrides)
 
     def import_file(
         self,
@@ -107,4 +117,16 @@ class CSVImporter(Importer):
             block.exec(transformer)
 
         return block.last_result
+
+    def try_infer_daterange(
+        self,
+        file: IO[bytes],
+        filename: str | None = None
+    ) -> DateRange:
+        df = pd.read_csv(file, **self.csv_args, usecols=['date'])
+        return DateRange(
+            df['date'].min().to_pydatetime(),
+            df['date'].max().to_pydatetime()
+        )
+
 
