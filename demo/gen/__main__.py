@@ -16,10 +16,9 @@ protagonist = Person(
 )
 
 uni_weights = Weights({
-    'coffee'              : RoutineEvent(constant(2), daily=0.4),
+    'coffee'              : RoutineEvent(constant(2), daily=0.2),
     'withdrawal'          : RoutineEvent(normal(50, 10), daily=0.15),
     'online_purchase'     : RoutineEvent(normal(50, 10), daily=0.1),
-    'transport'           : RoutineEvent(normal(2, 0.5), daily=1.0),
 
     'groceries'           : RoutineEvent(normal(40, 10), weekly=0.8),
     'night_out'           : RoutineEvent(constant(50), weekly=0.2),
@@ -27,6 +26,9 @@ uni_weights = Weights({
     'book_purchase'       : RoutineEvent(normal(20, 5), monthly=0.5),
 
     'rent'                : MonthlyFixture(500),
+
+    # Subscriptions
+    'transport'           : MonthlyFixture(22),
     'gym_membership'      : MonthlyFixture(30),
     'phone_subscription'  : MonthlyFixture(10),
     'allowance'           : MonthlyFixture(200)

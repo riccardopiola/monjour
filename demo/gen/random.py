@@ -8,8 +8,8 @@ class Distribution(Protocol):
 class constant(Distribution):
     value: float
 
-    def __init__(self, value: float):
-        self.value = value
+    def __init__(self, value: float|int):
+        self.value = round(float(value), 2)
 
     def __call__(self) -> float:
         return self.value
@@ -18,12 +18,12 @@ class uniform(Distribution):
     low: float
     high: float
 
-    def __init__(self, low: float, high: float):
-        self.low = low
-        self.high = high
+    def __init__(self, low: float|int, high: float|int):
+        self.low = float(low)
+        self.high = float(high)
 
     def __call__(self) -> float:
-        return random_module.uniform(self.low, self.high)
+        return round(random_module.uniform(self.low, self.high), 2)
 
 class normal(Distribution):
     mean: float
@@ -34,4 +34,4 @@ class normal(Distribution):
         self.stdev = stdev
 
     def __call__(self) -> float:
-        return random_module.normalvariate(self.mean, self.stdev)
+        return round(random_module.normalvariate(self.mean, self.stdev), 2)

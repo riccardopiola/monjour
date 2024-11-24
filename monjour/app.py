@@ -3,7 +3,7 @@ import pandas as pd
 from typing import IO, Callable
 
 from monjour.core.executor import Executor
-import monjour.core.log as log
+from monjour.core.log import MjLogger
 from monjour.core.common import DateRange
 from monjour.core.config import Config
 from monjour.core.account import Account
@@ -12,12 +12,16 @@ from monjour.core.archive import Archive
 from monjour.core.merge import MergeContext, Merger, DEFAULT_MERGE_EXECUTOR
 from monjour.core.importer import ImportContext, DEFAULT_IMPORT_EXECUTOR
 
+log = MjLogger(__name__)
+
 class App:
     config: Config
     archive: Archive
     accounts: dict[str, Account]
     categories: dict[str, Category]
+
     df: pd.DataFrame # Master account
+    df_listeners: list[Callable[[pd.DataFrame], None]] = []
 
     ##############################################
     # Configuration
@@ -29,6 +33,7 @@ class App:
         self.accounts = {}
         self.categories = {}
         self.df = pd.DataFrame()
+        self.df_listeners = []
 
     def define_accounts(self, *accounts: Account):
         for account in accounts:
@@ -83,9 +88,11 @@ class App:
         ctx = account.import_file(ctx)
 
     def run(self):
+        log.info("App.run - Running app")
         self.archive.load()
         self.load_all_from_archive()
         self.merge_accounts()
+        log.info("App.run - Done")
 
     ##############################################
     # Semi-Public API
@@ -122,6 +129,10 @@ class App:
         for account in accounts_to_merge:
             block.exec(account.merger)
         self.df = block.last_result
+
+        # Notify listeners
+        for listener_fn in self.df_listeners:
+            listener_fn(self.df)
 
         ctx.result = self.df
         return ctx
@@ -167,3 +178,9 @@ class App:
         app.accounts = self.accounts.copy()
         app.categories = self.categories.copy()
         return app
+
+    def _add_df_listener(self, listener_fn: Callable[[pd.DataFrame], None]):
+        """
+        Add a listener that will be called whenever the master account is updated.
+        """
+        self.df_listeners.append(listener_fn)

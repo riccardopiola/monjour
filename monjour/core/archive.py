@@ -2,8 +2,10 @@ import hashlib
 import io
 import datetime as dt
 import json
+import pandas as pd
 from pathlib import Path
 from enum import Enum
+from dataclasses import dataclass
 from typing import IO, TypeAlias, TypedDict, TYPE_CHECKING
 
 from monjour.core.log import MjLogger
@@ -61,6 +63,7 @@ class Archive:
     records: dict[str, ArchiveRecord]
     archive_dir: Path
     archive_json_path: Path
+    _df: pd.DataFrame|None
 
     def __init__(self, archive_dir: Path|str):
         if isinstance(archive_dir, str):
@@ -70,6 +73,7 @@ class Archive:
         # Load the archive table from disk or create a new one if it doesn't exist
         self.archive_json_path = self.archive_dir / 'archive.json'
         self.records = {}
+        self._df = None
 
     @staticmethod
     def calculate_file_hash(buf: IO[bytes]) -> str:
@@ -87,6 +91,12 @@ class Archive:
     ########################################################
     # Convenience methods
     ########################################################
+
+    @property
+    def df(self):
+        if self._df is None:
+            self._df = pd.DataFrame.from_records(list(self.records.values()))
+        return self._df
 
     def get_record(self, archive_id: ArchiveID) -> ArchiveRecord:
         """
@@ -251,6 +261,7 @@ class Archive:
             file_hash = hashlib.md5(file_contents).hexdigest()
             if file_hash != record['file_hash']:
                 raise HashMismatchError(f'File hash does not match for archive id {archive_id}')
+        self._df = None
         return io.BytesIO(file_contents)
 
     def forget_file(self, archive_id: ArchiveID):

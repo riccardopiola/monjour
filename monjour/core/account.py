@@ -236,3 +236,9 @@ class Account:
         log.info(f"Loaded archived file {archive_id} into account '{self.id}'")
         # Merge the new data into the account
         self.merge_fragment(ctx, df)
+
+    def copy(self):
+        other = type(self)(self.id, self.name, self.locale, self._importer, self._merger)
+        other.initialize(self.config)
+        other.data = self.data.copy()
+        return other

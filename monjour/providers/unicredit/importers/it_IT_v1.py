@@ -109,7 +109,6 @@ def add_unicredit_category(ctx: ImportContext, df: pd.DataFrame) -> pd.DataFrame
                 row['desc'] = f"Unicredit monthly cost for {values['month']}"
             case UnicreditCategory.PAYMENT:
                 if values['ecommerce'] is not None:
-                    row['payment_type'] = PaymentType.Ecommerce.value
                     row['unicredit_category'] = UnicreditCategory.ECOMMERCE.value
                 else:
                     row['payment_type'] = PaymentType.CardPayment.value

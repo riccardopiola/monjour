@@ -67,8 +67,6 @@ class DiagnosticCollector:
     diag_hint    = partialmethod(_record_diag_internal, DiagnosticSeverity.Hint)
     diag_debug   = partialmethod(_record_diag_internal, DiagnosticSeverity.Debug)
 
-    
-
     def has_diag(self, diag_type: DiagnosticSeverity) -> bool:
         return any(diag.type == diag_type for diag in self.diagnostics)
 

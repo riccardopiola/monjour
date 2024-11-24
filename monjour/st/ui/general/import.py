@@ -14,14 +14,14 @@ st_app = get_st_app(st.session_state.project_dir)
 
 def import_form():
     with st.container(border=True):
-        if (options := file_import_options(st_app)) is not None:
+        if (options := file_import_options(st_app, key=__name__)) is not None:
             # Submit button
             c1, c2, c3 = st.columns(3)
-            if c1.button('Import', type='primary', use_container_width=True):
+            if c1.button('Import', type='primary', use_container_width=True, key=new_key(__name__)):
                 return options, 'import'
-            if c2.button('Preview', type='secondary', use_container_width=True):
+            if c2.button('Preview', type='secondary', use_container_width=True, key=new_key(__name__)):):
                 return options, 'preview'
-            if c3.button('Cancel', type='secondary', use_container_width=True):
+            if c3.button('Cancel', type='secondary', use_container_width=True, key=new_key(__name__)):):
                 return None
     return None
 

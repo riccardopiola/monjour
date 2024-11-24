@@ -11,20 +11,20 @@ from monjour.core.importer import ImporterInfo, Importer
 from monjour.st import StApp
 
 @st.fragment
-def account_selector(st_app: StApp) -> str:
+def account_selector(st_app: StApp, key:str) -> str:
     # Create a dropdown menu
     accounts = st_app.app.accounts
 
-    return st.selectbox('Account', [account.id for account in accounts.values()],
+    return st.selectbox('Account', [account.id for account in accounts.values()], key=new_key(key),
         format_func=lambda id: f"{accounts[id].id} [{accounts[id].PROVIDER_ID}]")
 
 @st.fragment
-def importer_selector(st_app: StApp, account_id: str) -> ImporterInfo:
+def importer_selector(st_app: StApp, account_id: str, key: str) -> ImporterInfo:
     # Importer selection
     account = st_app.app.accounts[account_id]
     importers = st_app.list_all_importers()
     all_importers = sorted(importers[account_id], key=lambda imp: imp.id == account.importer.info.id, reverse=True)
-    importer_info = st.selectbox('Importer', all_importers,
+    importer_info = st.selectbox('Importer', all_importers, key=new_key(key),
                         format_func=lambda imp: imp.id)
     return importer_info
 
@@ -35,12 +35,12 @@ class FileImportOptions:
     date_range: DateRange
     file: IO[bytes]
 
-def file_import_options(st_app: StApp):
+def file_import_options(st_app: StApp, key: str):
     (c1, c2) = st.columns(2)
     with c1:
-        account_id = account_selector(st_app)
+        account_id = account_selector(st_app, key)
     with c2:
-        importer_info = importer_selector(st_app, account_id)
+        importer_info = importer_selector(st_app, account_id, key)
 
     account = st_app.app.accounts[account_id]
     importer = account.set_importer(importer_info.id)
@@ -70,6 +70,7 @@ def file_import_options(st_app: StApp):
         date_range = st.date_input('Date range',
             value=(inferred_start, inferred_end),
             max_value=dt.datetime.now(), # not sure if this is necessary
+            key=new_key(key)
         )
 
         return FileImportOptions(
