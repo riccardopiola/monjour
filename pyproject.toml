@@ -1,35 +1,46 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
+requires = ["setuptools>=42"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "monjour"
+requires-python = ">=3.12"
 version = "0.1.0"
 description = "A sample Python package"
 readme = "README.md"
+keywords = ["monjour", "expense", "money", "tracker"]
 authors = [
     { name = "Riccardo Piola", email = "riccardopiola@live.it" }
 ]
 license = { file = "LICENSE" }
-keywords = ["sample", "example", "library"]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Operating System :: OS Independent"
 ]
 
 dependencies = [
-  "pandas",
-  "numpy",
-  "matplotlib",
+  "colorama>=0.4",
+  "pandas>=2.2",
+  "pandera~=0.21.0",
+  "Faker>=33.0.0",
 ]
 
 [project.optional-dependencies]
-streamlit = ["streamlit"]
-examples = ["streamlit", "jupyter"]
-
-[project.scripts]
-tracker = "my_module.example:run_example"
+st = [
+  "streamlit~=1.40.0",
+  "streamlit-ace~=0.1.1",
+  "streamlit-aggrid~=1.0.5",
+  "streamlit-extras~=0.5.0",
+]
+dev = [
+  "pytest==8.3.3",
+  "jupyter==1.1.1",
+  "pip-tools==7.4.1"
+]
 
 [tool.setuptools]
 packages = ["monjour"]
+
+[tool.setuptools.package-data]
+monjour = ["demo/*"]

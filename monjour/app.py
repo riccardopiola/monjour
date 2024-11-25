@@ -117,27 +117,28 @@ class App:
         # Filter and reorder the accounts to merge
         accounts_to_merge = [ self.accounts[id] for id in accounts or self.accounts.keys() ]
 
-        if len(accounts_to_merge) == 0:
-            log.warning("App.merge_accounts: No accounts to merge")
-            return None
-
         # Setup
         df = pd.DataFrame() # Start with an empty dataframe
         ctx = MergeContext(self.categories, accounts_to_merge)
-        block = executor.new_block((ctx, df))
 
+        if len(accounts_to_merge) == 0:
+            log.warning("App.merge_accounts: No accounts to merge")
+            return ctx
+
+        block = executor.new_block((ctx, df))
         # Add all the mergers to the execution block, if the executor is an
         # ImmediateExecutor, this will run the mergers immediately
         # Otherwise, the mergers will be run when executor.run() is called
         for account in accounts_to_merge:
             block.exec(account.merger)
+
+        # Update the master account
         self.df = block.last_result
+        ctx.result = self.df
 
         # Notify listeners
         for listener_fn in self.df_listeners:
             listener_fn(self.df)
-
-        ctx.result = self.df
         return ctx
 
     ##############################################

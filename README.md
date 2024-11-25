@@ -1,5 +1,18 @@
 # Monjour
 
-**Monjour** (Money + Journal) is a tool designed to simplify financial tracking by consolidating your transaction data from multiple accounts into a single, unified source. With Monjour, you can generate insightful monthly and yearly financial reports, complete with visualizations such as graphs and diagrams, to help you better understand and manage your spending habits.
+**Monjour** (Money + Journal) is a tool designed to simplify financial tracking by consolidating your transaction data from multiple sources into a single, unified database. With Monjour, you can generate monthly and yearly financial reports, complete with visualizations such as graphs and diagrams, to help you better understand and manage your spending habits.
 
-> The rest of the readme is still to be written
+### Getting started
+
+It is recommended to create a virtual environment with
+
+`python -m venv .venv`
+
+Install Monjour directly from github, a PyPy package might be provided in the future. The `st` optional feature is required to run the demo and access streamlit related functionality.
+
+`pip install git+https://github.com/riccardopiola/monjour.git[st]`
+
+Run the demo
+
+`python -m monjour --demo`
+

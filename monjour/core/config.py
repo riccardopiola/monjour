@@ -19,3 +19,6 @@ class Config:
 
     # Surname of the user
     surname: str = ""
+
+    # Whether to check the hashes of the imported files for consistency
+    check_hashes_on_load: bool = True

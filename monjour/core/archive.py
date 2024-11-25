@@ -78,8 +78,9 @@ class Archive:
     archive_dir: Path
     archive_json_path: Path
     _df: pd.DataFrame|None
+    _check_hashes_on_load: bool
 
-    def __init__(self, archive_dir: Path|str):
+    def __init__(self, archive_dir: Path|str, check_hashes_on_load=True):
         if isinstance(archive_dir, str):
             self.archive_dir = Path(archive_dir)
         else:
@@ -88,6 +89,7 @@ class Archive:
         self.archive_json_path = self.archive_dir / 'archive.json'
         self.records = {}
         self._df = None
+        self._check_hashes_on_load = check_hashes_on_load
 
     @staticmethod
     def calculate_file_hash(buf: IO[bytes]) -> str:
@@ -261,7 +263,7 @@ class Archive:
     # Archive records management
     ########################################################
 
-    def load_file(self, archive_id: ArchiveID, check_hash: bool) -> io.BytesIO:
+    def load_file(self, archive_id: ArchiveID) -> io.BytesIO:
         """
         Load the file with the given archive id from the archive directory.
 
@@ -282,17 +284,20 @@ class Archive:
         if record['is_managed_by_archive']:
             # Records managed by the archive only save the file name in the 'file_path' field
             file_path = self.archive_dir / record['file_path']
+            check_hash = self._check_hashes_on_load
         else:
             # Extenral records save the full path in the 'file_path' field
             file_path = Path(record['file_path'])
+            check_hash = False
         file_contents = self._read(file_path)
+        bytes_io = io.BytesIO(file_contents)
 
         if check_hash:
-            file_hash = hashlib.md5(file_contents).hexdigest()
+            file_hash = Archive.calculate_file_hash(bytes_io)
             if file_hash != record['file_hash']:
                 raise HashMismatchError(f'File hash does not match for archive id {archive_id}')
         self._df = None
-        return io.BytesIO(file_contents)
+        return bytes_io
 
     def forget_file(self, archive_id: ArchiveID):
         """

@@ -226,26 +226,25 @@ class Account:
         self.merge_fragment(ctx, df)
         return ctx
 
-    def load_all_from_archive(self, archive: Archive, check_hash: bool=True):
+    def load_all_from_archive(self, archive: Archive):
         """
         Load all files previously saved in the archive into the account.
         """
         archive_records = archive.get_records_for_account(self.id)
         for record in archive_records:
-            self.load_from_archive(archive, record['id'], check_hash=check_hash)
+            self.load_from_archive(archive, record['id'])
 
-    def load_from_archive(self, archive: Archive, archive_id: ArchiveID, check_hash=True):
+    def load_from_archive(self, archive: Archive, archive_id: ArchiveID):
         """
         Load a single file from the archive into the account.
 
         Args:
             archive:    Archive object to use for loading the file.
             archive_id: ID of the file in the archive.
-            check_hash: If True, the hash of the file will be checked before loading.
         """
         # Use the importer to read the file into a dataframe
         record = archive.get_record(archive_id)
-        buf = archive.load_file(record['id'], check_hash=check_hash)
+        buf = archive.load_file(record['id'])
         importer = self.importer
         ctx = ImportContext(self, archive, archive_id, DateRange(record['date_start'], record['date_end']),
                             record['file_path'], importer_id=importer.info.id)
