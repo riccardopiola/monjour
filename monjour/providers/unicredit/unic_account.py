@@ -35,8 +35,10 @@ class Unicredit(BankAccount):
         card_last_4_digits: str|None = None,
         importer:   Importer|None = None,
         merger:     Merger|None = None,
+        **kwargs
     ):
-        super().__init__(id, name=name, iban=iban, locale=locale, card_last_4_digits=card_last_4_digits, importer=importer, merger=merger)
+        super().__init__(id, name, locale, iban, card_last_4_digits, importer,
+                         merger, currency=currency, **kwargs)
         self.currency = currency
 
     def initialize(self, config: Config) -> None:

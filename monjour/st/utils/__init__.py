@@ -1,14 +1,20 @@
 import pandas as pd
 
-def df_drop_empty_columns(df, enable=True):
-    if not enable:
-        return df
-    return df.dropna(axis=1, how='all')
+from monjour.st.utils.page import use_state
 
-def df_show_first(df, n:int|None=None, enable=True):
-    if not enable:
-        return df
-    return df.head(n)
+GLOBAL_COUNTER = 0
+bases = {}
 
+def key_seq(base: str|None = None):
+    if base is not None:
+        if base in bases:
+            bases[base] += 1
+        else:
+            bases[base] = 0
+        return f"{base}::{bases[base]}"
+    else:
+        global GLOBAL_COUNTER
+        GLOBAL_COUNTER += 1
+        return f"{base}::{GLOBAL_COUNTER}"
 
-    
+key_combine = lambda base, key: f"{base}::{key}"

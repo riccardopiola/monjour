@@ -42,5 +42,13 @@
 			"app = get_st_app(st.session_state.project_dir)"
 		],
 		"description": "Import StApp"
+	},
+	"Import Plotly": {
+		"scope": "python",
+		"prefix": "px",
+		"body": [
+			"import plotly.express as px"
+		],
+		"description": "Import Plotly"
 	}
 }

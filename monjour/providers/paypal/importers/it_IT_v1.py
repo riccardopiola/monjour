@@ -1,7 +1,6 @@
 import pandas as pd
 
 from monjour.core.importer import *
-from monjour.core.transformation import transformer
 
 from monjour.providers.paypal.paypal_types import PaypalTransactionType
 import monjour.providers.paypal.importers.generic_v1 as paypal_common
@@ -48,7 +47,6 @@ class PayPalImporter(csv_importer.CSVImporter):
 
     csv_transformers = [
         csv_importer.add_archive_id,
-        csv_importer.add_empty_category_column,
         csv_importer.create_deterministic_index,
         csv_importer.rename_columns(COLUMN_MAPPING),
         paypal_common.paypal_cast_columns,

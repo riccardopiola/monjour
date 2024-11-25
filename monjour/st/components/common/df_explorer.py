@@ -1,13 +1,16 @@
 import pandas as pd
 import streamlit as st
-from typing import Any
+from typing import Any, Literal
 from pandas.api.types import (
     is_datetime64_any_dtype,
     is_numeric_dtype,
     is_object_dtype,
 )
+from streamlit_extras.mandatory_date_range import date_range_picker
 
-def df_explorer(df: pd.DataFrame, case: bool = True) -> pd.DataFrame:
+from monjour.st.utils import key_combine
+
+def df_explorer(df: pd.DataFrame, key: str|None = None, case: bool = False) -> pd.DataFrame:
     """
     Mostly copied from streamlit_extras.dataframe_explorer.dataframe_explorer
 
@@ -20,7 +23,10 @@ def df_explorer(df: pd.DataFrame, case: bool = True) -> pd.DataFrame:
     Returns:
         pd.DataFrame: Filtered dataframe
     """
-    random_key_base = pd.util.hash_pandas_object(df)
+    if key is None:
+        random_key_base = pd.util.hash_pandas_object(df)
+    else:
+        random_key_base = key
 
     with st.container():
         to_filter_columns = st.multiselect(
@@ -76,6 +82,54 @@ def df_explorer(df: pd.DataFrame, case: bool = True) -> pd.DataFrame:
                     key=f"{random_key_base}_{column}",
                 )
                 if filters[column]:
-                    df = df[df[column].str.contains(filters[column], case=case)]
+                    result = df[column].str.contains(filters[column], case=case).fillna(False)
+                    # st.dataframe(result)
+                    df = df[result]
 
     return df
+
+DateSelectOptions = Literal['All', 'Last year', 'Last 90 Days', 'Last 30 Days', 'Last Week', 'Custom']
+DATE_SELECT_DEFAULT: list[DateSelectOptions] = ['All', 'Last year', 'Last 90 Days', 'Last 30 Days', 'Last Week', 'Custom' ]
+
+def df_date_filter(df: pd.DataFrame, key: str, from_now: bool = False,
+    options: list[DateSelectOptions] = DATE_SELECT_DEFAULT, default: DateSelectOptions|None = None,
+    use_container_width: bool = True
+):
+    """
+    Filter a DataFrame by date range.
+    Args:
+        df:         Original dataframe
+        key:        Key to use for the widgets
+        from_now:   If True, the end date will be the current date. Defaults to False.
+        options:    List of options for the date range. Defaults to DATE_SELECT_DEFAULT.
+        default:    Default selection. Defaults to None.
+    """
+    if default is None:
+        default = options[0]
+    selection = st.segmented_control('Date range', options, key='home_date_range',
+                label_visibility='visible', default=default, selection_mode='single')
+
+    end = pd.Timestamp.now() if from_now else df['date'].max()
+    if selection == 'All':
+        return df
+    elif selection == 'Last year':
+        start = end - pd.DateOffset(years=1)
+    elif selection == 'Last 90 Days':
+        start = end - pd.DateOffset(days=90)
+    elif selection == 'Last 30 Days':
+        start = end - pd.DateOffset(days=30)
+    elif selection == 'Last Week':
+        start = end - pd.DateOffset(weeks=1)
+    elif selection == 'Custom':
+        start = end - pd.DateOffset(days=30)
+        result = date_range_picker('Select the date range', default_start=start, default_end=end,
+            max_date=pd.Timestamp.now(), key=key_combine(key, 'date_range'))
+        start = pd.to_datetime(result[0]) # type: ignore
+        end = pd.to_datetime(result[1]) # type: ignore
+    else:
+        # User selected nothing
+        st.warning('Select a date range')
+        return df.head()
+
+    return df[df['date'] >= start]
+

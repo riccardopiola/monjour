@@ -2,10 +2,11 @@ import streamlit as st
 import pandas as pd
 
 from monjour.st import StApp
+from monjour.st.utils import use_state
 
-def archive_editor(st_app: StApp):
-    df = pd.DataFrame.from_records(list(st_app.app.archive.records.values()))
-    msgs = st_app.state_default(__name__, 'archive_messages', list)
+def archive_editor(st_app: StApp, page: str):
+    msgs = use_state(page, 'archive_messages', list).get()
+    df = st_app.app.archive.df # already cached by archive
 
     st.data_editor(
         df,
@@ -40,5 +41,5 @@ def archive_editor(st_app: StApp):
                 st_app.app.archive.forget_file(record['id'])
         st.session_state.archive_editor['deleted_rows'] = []
 
-    for msg in msgs.get():
+    for msg in msgs:
         msg()

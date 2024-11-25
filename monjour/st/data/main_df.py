@@ -4,8 +4,6 @@ import streamlit as st
 from monjour.st import monjour_app_cache, StApp
 from monjour.core.transaction import Transaction
 
-from monjour.st.components.df_explorer import df_explorer
-
 MASTER_DF_COLUMNS = Transaction.get_attribute_names()
 
 MASTER_DF_RELEVANT_COLUMNS = [

@@ -6,8 +6,8 @@ from monjour.core.archive import WriteOnlyArchive
 from monjour.core.executor import RecordingExecutor
 
 from monjour.st import get_st_app
-from monjour.st.components.file_import import FileImportOptions, file_import_options
-from monjour.st.components.diff import show_diff
+from monjour.st.components.general.file_import import FileImportOptions, file_import_options
+from monjour.st.components.common.diff import show_diff
 
 main_app = get_st_app(st.session_state.project_dir)
 
@@ -70,7 +70,7 @@ if debug_what == 'Import':
     debug_app = _app_for_import()
     fatal_error = None
     with st.container(border=True):
-        if (options := file_import_options(debug_app)) is not None:
+        if (options := file_import_options(debug_app, page=__name__)) is not None:
             c1, c2 = st.columns(2)
             if c1.button('Reset', use_container_width=True, key='debug-reset'):
                 st.session_state.debug_executor = RecordingExecutor()

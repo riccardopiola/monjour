@@ -296,7 +296,6 @@ class Archive:
             file_hash = Archive.calculate_file_hash(bytes_io)
             if file_hash != record['file_hash']:
                 raise HashMismatchError(f'File hash does not match for archive id {archive_id}')
-        self._df = None
         return bytes_io
 
     def forget_file(self, archive_id: ArchiveID):
@@ -345,6 +344,7 @@ class Archive:
         }
         path.parent.mkdir(parents=True, exist_ok=True)
         json_str = json.dumps(archive_info, default=custom_serializer, indent=4)
+        self._df = None
         self._write(path, io.BytesIO(json_str.encode()))
 
     def load(self, filepath: Path|None=None):

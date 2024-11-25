@@ -1,4 +1,7 @@
 from enum import Enum
+import pandas as pd
+
+from monjour.core.transaction import Transaction
 
 class PaypalTransactionType(Enum):
     UNKNOWN                         = 'Unknown'
@@ -14,3 +17,32 @@ class PaypalTransactionType(Enum):
     ACCOUNT_HOLD_FOR_AUTHORIZATION  = 'Account hold for open authorization'
     REVERSAL_OF_GENERIC_ACCOUNT_HOLD = 'Reversal of generic account hold'
     USER_INITIATED_TRANSFER         = 'User-initiated transfer'
+
+
+class PaypalTransaction(Transaction):
+
+    paypal_transaction_type: PaypalTransactionType
+
+    paypal_desc: str
+
+    paypal_date: pd.Timestamp
+
+    paypal_time: str
+
+    paypal_gross: float
+
+    paypal_fee: float
+
+    paypal_net: float
+
+    paypal_transaction_id: str
+
+    paypal_sender_email: str
+
+    paypal_bank_name: str
+
+    paypal_bank_acccount: str
+
+    paypal_shipping_and_handling_amount: float
+
+    paypal_vat: float

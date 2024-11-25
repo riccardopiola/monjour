@@ -47,6 +47,10 @@ class Account:
     locale: str|None
     _importer: Importer|None
     _merger: Merger|None
+    _initialized: bool = False
+
+    # Copy if the arguments is used to copy the account
+    _kwargs: dict
 
     ##############################################
     # Initialization
@@ -59,6 +63,7 @@ class Account:
         locale: str|None = None,
         importer: Importer|None = None,
         merger: Merger|None = None,
+        **kwargs
     ):
         self.id = id
         self.name = name
@@ -66,15 +71,23 @@ class Account:
         self._importer = importer
         self._merger = merger
         self.data = self.TRANSACTION_TYPE.to_empty_df()
+        if (config := kwargs.get('config')) is not None:
+            self.initialize(config)
+            self._initialized = True
+        if (data := kwargs.get('data')) is not None:
+            self.data = data
+        self._kwargs = { k: v for k, v in kwargs.items() if k not in ('config', 'data') }
 
     def initialize(self, config: Config):
         """
         Initialize the account with the provided config by loading the data from the archive.
         This function is called by the App object right after the account is defined.
         """
+        assert not self._initialized, "Account already initialized"
         self.config = config
         if self.locale is None:
             self.locale = config.locale
+        self._initialized = True
 
     @property
     def importer(self) -> Importer:
@@ -253,15 +266,11 @@ class Account:
         # Merge the new data into the account
         self.merge_fragment(ctx, df)
 
-    def copy(self) -> Self:
+    def copy(self) -> "Account":
         """
         Return a new Account object containing the same data as this account.
         - The configuration is copied by reference, as it should be immutable.
         - Any data is copied by value
-
-        Derived classes that have different init methods should override this.
         """
-        other = type(self)(self.id, self.name, self.locale, self._importer, self._merger)
-        other.initialize(self.config)
-        other.data = self.data.copy()
-        return other
+        return type(self)(id=self.id, name=self.name, locale=self.locale, importer=self._importer,
+                          merger=self._merger, config=self.config, data=self.data, **self._kwargs)
