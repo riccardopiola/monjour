@@ -23,6 +23,13 @@ class HashMismatchError(Exception):
     pass
 
 class ArchiveRecord(TypedDict):
+    """
+    Represents a file known to the archive. It can be:
+    - A file that has been copied into the archive folder and now managed Archive
+    - An external file (App.import)
+    
+    The discriminator is the 'is_managed_by_archive' field.
+    """
     id: str
     imported_date: dt.datetime
     importer_id: str|None
@@ -34,6 +41,10 @@ class ArchiveRecord(TypedDict):
     is_managed_by_archive: bool
 
 class ArchiveInfo(TypedDict):
+    """
+    Persisted archive information. This object is serialized to disk in
+    JSON format. Usually in $appdata_dir/archive/archive.json
+    """
     records: dict[str, ArchiveRecord]
     archiver_version: str
 
@@ -56,6 +67,9 @@ class Archive:
 
     To get the file contents, an Importer calls the load_file method with the archive_id. The file is
     read from the archive directory and returned as bytes.
+
+    The archive also keeps track of the metadata of the files that have been imported but are not in the
+    archive directory.
     """
     version = MONJOUR_VERSION
 
@@ -85,6 +99,9 @@ class Archive:
 
     @staticmethod
     def calculate_archive_id(account_id: str, file: IO[bytes]) -> ArchiveID:
+        """
+        Create a semi-deterministic archive id for the file based on the account id and the file hash.
+        """
         hash = Archive.calculate_file_hash(file)
         return f"{account_id}_{hash}"
 
@@ -94,24 +111,24 @@ class Archive:
 
     @property
     def df(self):
+        """
+        Return the archive table as a DataFrame. This is a cached property.
+        """
         if self._df is None:
             self._df = pd.DataFrame.from_records(list(self.records.values()))
         return self._df
 
     def get_record(self, archive_id: ArchiveID) -> ArchiveRecord:
-        """
-        Get the record for the given archive id.
-        """
+        """Get the record for the given archive id."""
         return self.records[archive_id]
 
     def ensure_hashes_match(self, archive_id: ArchiveID, hash: str):
-        """
-        Ensure the hash of the file matches the hash in the archive table.
-        """
+        """Ensure the hash of the file matches the hash in the archive table."""
         if hash != self.records[archive_id]['file_hash']:
             raise HashMismatchError(f'File hash does not match for archive id {archive_id}')
 
     def get_records_for_account(self, account_id: str) -> list[ArchiveRecord]:
+        """Get all records for the given account id."""
         return [record for record in self.records.values() if record['account_id'] == account_id]
 
 
@@ -132,15 +149,15 @@ class Archive:
         Archive a file in the archive directory and record the metadata in the archive table.
 
         Args:
+            archive_id:         ID of the file to archive (previously obtained with calculate_archive_id).
             account_id:         Name of the account that the file belongs to.
-            importer_name:      Name of the importer that is importing the file.
-            importer_version:   Version of the importer that is importing the file.
+            importer_id:        ID of the importer that has parsed the file.
             date_range:         Date internal of transactions covered by the file.
             file:               BytesIO object containing the file contents.
             extension:          Extension to use use for the file (not including dot).
 
         Returns:
-            Archive ID of the file.
+            ArchiveOperationResult: The result of the operation. (Archived, Reimported)
 
         Raises:
             HashMismatchError: If the file has already been archived but the hash does not match.
@@ -172,8 +189,21 @@ class Archive:
         is_managed_by_archive: bool = False,
     ) -> ArchiveOperationResult:
         """
-        Internal method to register a file in the archive table.
-        If the file has already been archived, it will check the hash and raise an error if it doesn't match.
+        Register a file in the archive table.
+
+        Args:
+            archive_id:         ID of the file to archive (previously obtained with calculate_archive_id).
+            account_id:         Name of the account that the file belongs to.
+            importer_id:        ID of the importer that has parsed the file.
+            date_range:         Date internal of transactions covered by the file.
+            filepath:           Path to the file. If the file is managed by the archive, this should be the filename.
+            is_managed_by_archive: If True, the file is managed by the archive and is stored in the archive directory.
+
+        Returns:
+            ArchiveOperationResult: The result of the operation. (Registered, Reimported)
+
+        Raises:
+            HashMismatchError: If the file has already been archived but the hash does not match.
         """
         file_hash = archive_id[len(account_id):]
         if archive_id in self.records:
@@ -279,12 +309,14 @@ class Archive:
     ########################################################
 
     def _write(self, dest: Path, data: IO[bytes]):
+        """Implementation of a filesystem write operation."""
         dest.parent.mkdir(parents=True, exist_ok=True)
         with open(dest, 'wb') as f:
             data.seek(0)
             f.write(data.read()) 
 
     def _read(self, src: Path) -> bytes:
+        """Implementation of a filesystem read operation."""
         return src.read_bytes()
 
     ########################################################

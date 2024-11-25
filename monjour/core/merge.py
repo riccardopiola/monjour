@@ -14,6 +14,22 @@ if TYPE_CHECKING:
 DEFAULT_MERGE_EXECUTOR = Executor["MergeContext", pd.DataFrame]()
 
 class MergeContext(DiagnosticCollector):
+    """
+    Context object that is passed to the various classes partecipating in the merge process.
+    This object contains all the information a Merger might need to merge one account into the main DataFrame.
+
+    Similiarly to ImportContext
+    - The context is mostly immutable, with the exception of the result and 'extra' fields.
+    - The context collects diagnostics that are generated during the merge process.
+    - The context doubles as the object representing the result of the merge operation.
+
+    Attributes:
+        accounts:   List of accounts that are being merged.
+        categories: Categories defined in the app.
+        extras:     Extra information that can be passed to the merger or within modules of a merger.
+        executor:   Executor that will be used to execute the merge process.
+        result:     Result of the merge process. This field is set at the end of the merge process.
+    """
     # Accounts being merged toghether
     accounts: list["Account"]
 
@@ -26,11 +42,11 @@ class MergeContext(DiagnosticCollector):
     # Extra data that can be passed around
     extras: dict
 
-    # Return value of the final transformation
-    result: pd.DataFrame|None
-
     # Executor being used for the merge operation
     executor: Executor
+
+    # Return value of the final transformation
+    result: pd.DataFrame|None
 
     def __init__(self, categories: dict[str, Category], accounts_to_merge: list["Account"],
                  extras: dict|None = None):
@@ -74,6 +90,10 @@ class MergeContext(DiagnosticCollector):
 Merger = Transformer[MergeContext, pd.DataFrame]
 
 class BoundMerger(Transformer[MergeContext, pd.DataFrame]):
+    """
+    Merger bound to a specific account type.
+    This is used to ensure that the merger is only used with the correct account type.
+    """
     bound_account: "type[Account]"
     bound_instance: "Account|None"
 

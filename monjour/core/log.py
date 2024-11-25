@@ -1,4 +1,9 @@
-# log.py
+"""
+Monjour Logging Module
+- On load, initializes the logging infrastructure for monjour.
+- Defines common logging functions that can be used throughout the codebase. monjour.core.log.info, monjour.core.log.debug, etc.
+- Defines a logger class (MjLogger) for more advanced use cases
+"""
 import logging
 import colorama
 import monjour.core.globals as mj_globals

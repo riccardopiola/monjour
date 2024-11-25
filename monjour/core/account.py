@@ -1,4 +1,4 @@
-from typing import IO, ClassVar
+from typing import IO, ClassVar, Self
 import pandas as pd
 
 from monjour.core.log import MjLogger
@@ -18,9 +18,8 @@ class Account:
     - Importing new files (or deferring the import to an Importer object)
     - Merging the data into a master DataFrame.
 
-    NOTE: initialize() is separated from __init__ to allow the account to be defined before the
-    archive is created and without manually passing the global config around.
-    If initialize() is not called, the account object should not be used.
+    NOTE: initialize() is separated from __init__ to allow the account to be create without a Config object.
+    Account objects should not be used before initialize() is called.
 
     Class Attributes:
         PROVIDER_ID:    Unique identifier for the provider of the account.
@@ -31,7 +30,7 @@ class Account:
         id:         Unique identifier for the account.
         data:       DataFrame containing the transactions.
         name:       Optional readable name for the account.
-        locale:     Optional locale for the account.
+        locale:     Optional locale for the account. (Used to auto select the right importer)
         importer:   Optional importer to use to import new files into this account. If not provided,
                     the importer will be automatically selected based on the locale.
         merger:     Optional merger to use to merge the account data into the master DataFrame.
@@ -79,6 +78,11 @@ class Account:
 
     @property
     def importer(self) -> Importer:
+        """
+        Loads the importer class to use to import new files into the account.
+        If no importer is defined, the default importer will be loaded based on the locale.
+        If an importer was set in __init__, or with set_importer, it will be used instead.
+        """
         if self._importer is None:
             self._importer = self.get_default_importer(self.locale)
         return self._importer
@@ -86,15 +90,10 @@ class Account:
     @property
     def merger(self) -> Merger:
         """
-        Merge the account data into another DataFrame.
-        This method is usually called by App when it merges all the accounts into a single DataFrame.
-
-        The Account class implementing this method is resposible for performing any join or merge operation
-        that is necessary to combine the account data with the other DataFrame.
-
-        Args:
-            ctx:   MergeContext object containing the accounts to merge.
-            other: DataFrame to merge the account data into.
+        Get a merger cabable of merging the account data into another DataFrame.
+        For more information about Mergers, see the monjour.core.merge module.
+        - The returned merger will be the one specified in `__init__` or the default merger if none was provided.
+        - Derived classes should not override this method, but instead override `get_default_merger` or `merge_into`.
         """
         if self._merger is None:
             self._merger = self.get_default_merger()
@@ -106,14 +105,10 @@ class Account:
 
     def get_default_merger(self) -> Merger:
         """
-        Merge the account data into another DataFrame.
-        This method is usually called by App when it merges all the accounts into a single DataFrame.
-
-        The Account class implementing this method is resposible for performing any join or merge operation
-        that is necessary to combine the account data with the other DataFrame.
-
-        Args:
-            other: DataFrame to merge the account data into.
+        Get the default merge for this account. This base implementation returns
+        a merger that forwards the call to the merge_into method of the account.
+        Derived classes can either override this method to provide a custom Merger
+        object or more simply override the merge_into method to provide the merging logic.
         """
         return BoundMerger(self.merge_into, type(self), self, "Account.default_merger")
 
@@ -138,14 +133,18 @@ class Account:
         An account is often the aggregation of multiple files. For example, a bank account can have
         multiple CSV files relating to different months/years stored separetely in the archive.
         These records are loaded into the account one by one and merged into the account's DataFrame.
+
+        Args:
+            ctx: ImportContext object containing the context of the import operation.
+            df:  DataFrame containing the transactions imported from the file.
         """
         self.data = pd.concat([self.data, df])
 
     ##############################################
     # Importer selection methods
     # only get_default_importer is required to be implemented.
-    # Most accounts use the @with_locale_helper decorator automatically define those methods
-    # if they follow the convention of managin the importers with monjour.utils.LocaleImporter
+    # Most accounts use the @with_locale_helper decorator (see monjour.utils.locale_importer)
+    # to automatically define the importer selection methods below. 
     ##############################################
 
     def get_default_importer(self, locale: str|None=None) -> Importer:
@@ -182,6 +181,14 @@ class Account:
     ##############################################
 
     def import_file(self, ctx: ImportContext) -> ImportContext:
+        """
+        Imports a file from the local filesystem into this account. This function:
+        - Parses the file with the importer
+        - Adds a record to ther archive recording the import
+        - Merges the new data into the account's DataFrame
+
+        It DOES NOT copy the file into the archive folder. Use archive_file for that.
+        """
         importer = self.importer
         # Import the file
         with open(ctx.filename, 'rb') as f:
@@ -196,6 +203,13 @@ class Account:
         return ctx
 
     def archive_file(self, ctx: ImportContext, buffer: IO[bytes]) -> ImportContext:
+        """
+        Imports a file from a buffer into this account. This function:
+        - Parses the file with the importer
+        - COPIES the file into the archive folder
+        - Adds a record to ther archive recording the import
+        - Merges the new data into the account's DataFrame
+        """
         # Import the file
         importer = self.importer
         buffer.seek(0)
@@ -212,14 +226,17 @@ class Account:
         self.merge_fragment(ctx, df)
         return ctx
 
-    def load_all_from_archive(self, archive: Archive, check_hash: bool=False):
+    def load_all_from_archive(self, archive: Archive, check_hash: bool=True):
+        """
+        Load all files previously saved in the archive into the account.
+        """
         archive_records = archive.get_records_for_account(self.id)
         for record in archive_records:
             self.load_from_archive(archive, record['id'], check_hash=check_hash)
 
-    def load_from_archive(self, archive: Archive, archive_id: ArchiveID, check_hash=False):
+    def load_from_archive(self, archive: Archive, archive_id: ArchiveID, check_hash=True):
         """
-        Load a file from the archive into the account.
+        Load a single file from the archive into the account.
 
         Args:
             archive:    Archive object to use for loading the file.
@@ -237,7 +254,14 @@ class Account:
         # Merge the new data into the account
         self.merge_fragment(ctx, df)
 
-    def copy(self):
+    def copy(self) -> Self:
+        """
+        Return a new Account object containing the same data as this account.
+        - The configuration is copied by reference, as it should be immutable.
+        - Any data is copied by value
+
+        Derived classes that have different init methods should override this.
+        """
         other = type(self)(self.id, self.name, self.locale, self._importer, self._merger)
         other.initialize(self.config)
         other.data = self.data.copy()

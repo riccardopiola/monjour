@@ -102,14 +102,17 @@ class App:
         for account in self.accounts.values():
             account.load_all_from_archive(self.archive)
 
-    def merge_accounts(self, accounts: list[str]|None = None,
-                       executor: Executor[MergeContext, pd.DataFrame] = DEFAULT_MERGE_EXECUTOR) -> MergeContext|None:
+    def merge_accounts(
+        self,
+        accounts: list[str]|None = None,
+        executor: Executor[MergeContext, pd.DataFrame] = DEFAULT_MERGE_EXECUTOR
+    ) -> MergeContext:
         """
         Create a master account by combining the specified accounts.
 
         Args:
             accounts: List of account IDs to merge. If None, all accounts are merged.
-            merge_fn: Optional custom merge function to use instead of the default merge function.
+            executor: Executor to use for the merge process.
         """
         # Filter and reorder the accounts to merge
         accounts_to_merge = [ self.accounts[id] for id in accounts or self.accounts.keys() ]
@@ -166,6 +169,14 @@ class App:
         ctx = account.archive_file(ctx, file)
         return ctx
 
+    def _add_df_listener(self, listener_fn: Callable[[pd.DataFrame], None]):
+        """
+        Add a listener that will be called whenever the master account (App.df) is updated.
+        This occurs after a merge operation or a 
+        """
+        self.df_listeners.append(listener_fn)
+
+
     ##############################################
     # Utils
     ##############################################
@@ -177,10 +188,6 @@ class App:
         app = App(self.config, self.archive)
         app.accounts = self.accounts.copy()
         app.categories = self.categories.copy()
+        app.df = self.df
+        app.df_listeners = self.df_listeners.copy()
         return app
-
-    def _add_df_listener(self, listener_fn: Callable[[pd.DataFrame], None]):
-        """
-        Add a listener that will be called whenever the master account is updated.
-        """
-        self.df_listeners.append(listener_fn)

@@ -30,3 +30,6 @@ examples = ["streamlit", "jupyter"]
 
 [project.scripts]
 tracker = "my_module.example:run_example"
+
+[tool.setuptools]
+packages = ["monjour"]

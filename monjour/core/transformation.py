@@ -5,6 +5,11 @@ Ctx = TypeVar('Ctx', contravariant=True)
 Val = TypeVar('Val')
 
 class Transformation(Generic[Ctx, Val]):
+    """
+    A transformation is a record of a function that was executed with a given set of arguments
+    and produced a given result. It is used by RecordingExecutor for debugging and for keeping track
+    of the transformations that were executed.
+    """
     name: str
     args: tuple[Ctx, Val]
     result: Val
@@ -20,6 +25,10 @@ class Transformation(Generic[Ctx, Val]):
         return f"Transformation({self.name})"
 
 class Transformer(Generic[Ctx, Val]):
+    """
+    A transformer is a wrapper around a function that takes a context and an input value
+    (usually a pd.DataFrame) and returns a new value of the same type.
+    """
     name: str
     fn: Callable[[Ctx, Val], Val]
     extra_args: dict[str, Any]
@@ -33,6 +42,9 @@ class Transformer(Generic[Ctx, Val]):
         return self.fn(ctx, val)
 
 def transformer(name: str|None = None):
+    """
+    Decorator for creating a Transformer object from a function.
+    """
     def decorator(fn: Callable[[Ctx, Val], Val]) -> Transformer[Ctx, Val]:
         return Transformer[Ctx, Val](fn, name)
     return decorator

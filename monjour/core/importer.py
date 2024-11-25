@@ -3,17 +3,35 @@ import pandas as pd
 from abc import ABC, abstractmethod
 from typing import IO, TYPE_CHECKING
 
-from monjour.utils.diagnostics import DiagnosticCollector, Diagnostic
 from monjour.core.executor import Executor
+from monjour.core.archive import Archive, DateRange, ArchiveID, ArchiveOperationResult
+from monjour.utils.diagnostics import DiagnosticCollector, Diagnostic
 
 if TYPE_CHECKING:
     from monjour.core.account import Account
 
-from monjour.core.archive import Archive, DateRange, ArchiveID, ArchiveOperationResult
-
 DEFAULT_IMPORT_EXECUTOR = Executor["ImportContext", pd.DataFrame]()
 
 class ImportContext(DiagnosticCollector):
+    """
+    Context object that is passed to the various classes partecipating in the import process.
+    This object contains all the information an Importer might need to import a file.
+
+    - The context is mostly? immutable, with the exception of the result and 'extra' fields. (should probably be immutable)
+    - The context collects diagnostics that are generated during the import process.
+    - The context doubles as the object representing the result of the an import operation.
+
+    Attributes:
+        account:    Account object that the file is being imported for.
+        archive:    Archive object that will be used to store the file.
+        archive_id: ID of the archive that will be used to store the file.
+        date_range: Date range associated with the file.
+        filename:   Name of the file being imported.
+        importer_id:    ID of the importer that will be used to import the file.
+        executor:   Executor that will be used to execute the import process.
+        extra:      Extra information that can be passed to the importer or within the importer.
+        result:     Result of the import process. This field is set at the end of the import process.
+    """
     account: "Account"
     archive: Archive
     archive_id: ArchiveID
@@ -60,6 +78,21 @@ class ImportContext(DiagnosticCollector):
         )
 
 class ImporterInfo:
+    """
+    Infomation about an Importer. Decorate an importer with @importer to fill in this information.
+
+    Importers are not loaded until they are needed, so this class is used to store information
+    about an importer and its capabilities without actually loading the importer.
+
+    Attributes:
+        id:                     Unique ID of the importer.
+        supported_locale:       Locale supported by this importer. Use "*" to support all locales.
+        version:                Version of the importer.
+        importer_class_name:    Name of the importer class.
+        module:                 Module where the importer class is defined.
+        friendly_name:          Friendly name of the importer.
+        supports_executor:      Whether the importer supports the use of an executor. (not used at the moment)
+    """
     id: str
     supported_locale: str
     version: str
@@ -86,17 +119,10 @@ class InvalidFileError(Exception):
 
 class Importer(ABC):
     """
-    Base class for all Importers.
-
-    When a new file is imported, the Importer is responsible for archiving the file and
-    loading it into a DataFrame.
-
-    Usually the Importer and the Account are separate classes. This way the same account can
-    have multiple importers, each one responsible for a different type of file or different locale.
-    For simple cases, the Importer can be the same as the Account.
+    Abstract base class for all Importers. Importers take in a file (usually a CSV file
+    but it can be any file) and parse it into a DataFrame.
+    The importer's capabilities are defined by the ImporterInfo object.
     """
-
-    # To be defined by concrete classes
     info: ImporterInfo
 
     def __init__(self):
@@ -108,15 +134,7 @@ class Importer(ABC):
         ctx: ImportContext,
         file: IO[bytes],
     ) -> pd.DataFrame:
-        """
-        Archive a new file using the provided archiver and return the archive_id.
-        This call doesn't require the file to be parsed into a DataFrame.
-
-        Args:
-            archive:    Archive to use to store the file.
-            file:       Path or buffer to the file to import.
-            date_range: Optional date range to associate with the file.
-        """
+        """Import a file into a DataFrame."""
         ...
 
     def try_infer_daterange(
@@ -124,12 +142,15 @@ class Importer(ABC):
         file: IO[bytes],
         filename: str|None=None,
     ) -> DateRange:
+        """
+        The importer will try to infer the date range of the file from the filename or, if not possible,
+        by loading the file itself.
+        """
         raise NotImplementedError("This importer doesn't support inferring the date range automatically")
 
 def importer(locale: str, v: str, friendly_name: str | None = None, supports_executor: bool = False):
     """
     Decorator for Importer classes.
-    This decorator registers the decorated class as an Importer.
 
     Args:
         name:       Name of the importer.

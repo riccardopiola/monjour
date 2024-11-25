@@ -38,8 +38,17 @@ TransactionID: TypeAlias = str
 
 @dataclass
 class Transaction:
+    """
+    This class represent the standard transaction object used thoughtout the codebase.
+    It rarely gets instantiated directly, but it is useful as a schema for untyped dataframes.
+
+    - Importers have the goal of converting raw data into a list of transactions of this type.
+    - The main dataframe in App is a collection of transactions of this type, with the attribute names
+        being the column names of the dataframe and the type annotations being the types of the columns.
+        The converison between the two is done by the to_pd_dtype_dict method.
+    """
     ##############################################
-    # Bookkeeping
+    # Bookkeeping variables
     ##############################################
 
     # The unique identifier for the transaction
