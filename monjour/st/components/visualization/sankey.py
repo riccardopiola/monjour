@@ -4,86 +4,69 @@ import plotly.graph_objects as go
 from monjour.st import StApp, monjour_app_cache
 
 @monjour_app_cache(key='sankey_diagram')
-def common_df(st_app: StApp):
-    df = st_app.app.df.copy()
-    df['category'] = df['category'].str.replace('.', '/')
-    df['expense'] = df['amount'] < 0
-    df['amount_abs'] = df['amount'].abs()
-    return df
+def sankey_diagram(st_app: StApp):
+    pass
 
+def sankey(income: pd.DataFrame, expenses: pd.DataFrame):
 
-def links_df(df: pd.DataFrame):
-    df = df.copy()
-    expenses = df[df['expense']]
-    income = df[~df['expense']]
+    total_income = income['amount_abs'].sum()
+    total_expenses = expenses['amount_abs'].sum()
 
-    # Normalize income flows to distribute proportionally across expenses
-    total_income = income['amount'].sum()
-    total_expenses = expenses['amount'].sum()
-    income['proportion'] = income['amount'] / total_income
-    expenses['proportion'] = expenses['amount'] / total_expenses
+    # Create central total node
+    central_total = min(total_income, total_expenses)
 
-
-
-    # Create all source-target pairs with proportional flows
+    # Prepare links for Sankey diagram
     links = []
-    for _, inc_row in income.iterrows():
-        for _, exp_row in expenses.iterrows():
-            links.append({
-                'source': inc_row['category'],
-                'target': exp_row['category'],
-                'value': inc_row['proportion'] * exp_row['amount']
-            })
 
-    # Convert links to DataFrame
-    links_df = pd.DataFrame(links)
-    return links_df
-    # draw_sankey(links_df, 'source', 'target', 'value', 'Income vs Expenses by Category')
-
-def draw_sankey(
-    df: pd.DataFrame,
-    title: str,
-    source_col: str = 'source',
-    target_col: str = 'target',
-    value_col: str = 'value',
-):
-    """
-    Given a dataframe with source, target, and value columns, draw a Sankey diagram.
-
-    Example:
-        df = pd.DataFrame({
-            "source": ["Income/Salary", "Income/Salary", "Income/Gifts", "Income/Investments"],
-            "target": ["Expenses/Food", "Expenses/Housing", "Expenses/Transport", "Expenses/Food"],
-            "amount": [2000, 1500, 300, 500]
+    # From income categories to central total
+    for _, row in income.iterrows():
+        links.append({
+            'source': row['category'],
+            'target': 'Total',
+            'value': row['amount_abs']
         })
-        draw_sankey_diagram(df, 'source', 'target', 'amount', 'Income vs Expenses by Category')
-    """
 
-    # Create unique nodes for the Sankey diagram
-    all_nodes = list(pd.concat([df[source_col], df[target_col]]).unique())
+    # From central total to expense categories
+    for _, row in expenses.iterrows():
+        links.append({
+            'source': 'Total',
+            'target': row['category'],
+            'value': row['amount_abs']
+        })
+
+    # Combine all unique nodes (income, total, expenses)
+    all_nodes = list(pd.concat([
+        pd.Series(income['category']),
+        pd.Series(['Total']),
+        pd.Series(expenses['category'])
+    ]).unique())
+
+    # Map nodes to indices for Plotly Sankey
     node_indices = {node: i for i, node in enumerate(all_nodes)}
-    df['source_index'] = df[source_col].map(node_indices)
-    df['target_index'] = df['target'].map(node_indices)
+    for link in links:
+        link['source_index'] = node_indices[link['source']]
+        link['target_index'] = node_indices[link['target']]
 
-    # Create the Sankey diagram
+    # Create Sankey diagram
     fig = go.Figure(go.Sankey(
-        node={
-            'pad': 15,
-            'thickness': 20,
-            'line': {'color': "black", 'width': 0.5},
-            'label': all_nodes
-        },
-        link={
-            'source': df['source_index'],
-            'target': df['target_index'],
-            'value': df[value_col]
-        }
+        node=dict(
+            pad=15,
+            thickness=20,
+            line=dict(color="black", width=0.5),
+            label=all_nodes,
+            color="blue"
+        ),
+        link=dict(
+            source=[link['source_index'] for link in links],
+            target=[link['target_index'] for link in links],
+            value=[link['value'] for link in links],
+            color="rgba(44, 160, 101, 0.6)" 
+        )
     ))
 
     fig.update_layout(
-        title_text=title,
+        title_text="Sankey Diagram: Income to Expenses",
         font_size=10
     )
 
-    fig.update_layout(title=title)
     return fig

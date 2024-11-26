@@ -39,12 +39,11 @@ def get_routes(_):
     REPORTS = st_lib_home / 'ui' / 'reports'
     income_expenses_page = st.Page(REPORTS / 'income_expenses.py', title="Income/Expenses")
     report_categories_page = st.Page(REPORTS / 'report_categories.py', title="By Categories")
-    sankey_page = st.Page(REPORTS / 'sankey.py', title="Sankey")
 
     return (
         [debug_page, jupyter_page] if MONJOUR_DEBUG else [],
         [dash_page, archive_page, edit_page],
-        [income_expenses_page, report_categories_page, sankey_page]
+        [income_expenses_page, report_categories_page]
     )
 
 debug, general, reports = get_routes(st.session_state.project_dir)

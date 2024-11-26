@@ -39,7 +39,7 @@ class ImportContext(DiagnosticCollector):
     filename: str
     importer_id: str
 
-    executor: Executor["ImportContext", pd.DataFrame] = DEFAULT_IMPORT_EXECUTOR
+    executor: Executor["ImportContext", pd.DataFrame]
     extra: dict
 
     result: pd.DataFrame|None = None

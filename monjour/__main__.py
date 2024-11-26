@@ -15,6 +15,7 @@ parser.add_argument('--log_level', type=str, help='Set the log level', choices=[
 parser.add_argument('-st', '--streamlit', action='store_true', help='Run the Streamlit server')
 parser.add_argument('-Xstreamlit', action='append', nargs='*', help='Any argument that will be passed to streamlit (exampple -Xstreamlit server.port 8501)')
 parser.add_argument('-Xapp', action='append', nargs='*', help='Arguments of type key=value to pass to the app')
+parser.add_argument('--demo', action='store_true', help='Run the demo')
 
 parser.add_argument('project', nargs="?", help='Project directory', default=".")
 args = parser.parse_args()
@@ -50,7 +51,7 @@ os.chdir(proj_dir)
 log.info(f"Changed working directory to {os.getcwd()}")
 sys.path.append(proj_dir)
 
-if len(args.Xapp):
+if args.Xapp:
     json_args = {}
     for arg in args.Xapp:
         key, value = arg[0].split('=')
@@ -64,7 +65,7 @@ if args.streamlit or args.demo:
     app_entry_file = os.path.join( os.path.dirname(__file__), 'st', 'st_main.py')
     sys.argv = ["streamlit", "run", app_entry_file]
 
-    if len(args.Xstreamlit):
+    if args.Xstreamlit:
         for arg in args.Xstreamlit:
             sys.argv.append("--" + arg)
 

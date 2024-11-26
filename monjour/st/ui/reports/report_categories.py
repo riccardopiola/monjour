@@ -9,7 +9,7 @@ from monjour.st.utils import key_combine
 
 from monjour.st.components.common.df_explorer import df_date_filter
 from monjour.st.components.visualization import income_expenses
-from monjour.st.components.visualization import sankey2
+from monjour.st.components.visualization import sankey
 
 st_app = get_st_app(st.session_state.project_dir)
 
@@ -95,6 +95,6 @@ with c2:
 ##############################################
 
 # Draw the Sankey diagram
-fig = sankey2.sankey(income, expenses)
+fig = sankey.sankey(income, expenses)
 st.plotly_chart(fig, use_container_width=True, height=600)
 
