@@ -88,8 +88,8 @@ def df_explorer(df: pd.DataFrame, key: str|None = None, case: bool = False) -> p
 
     return df
 
-DateSelectOptions = Literal['All', 'Last year', 'Last 90 Days', 'Last 30 Days', 'Last Week', 'Custom']
-DATE_SELECT_DEFAULT: list[DateSelectOptions] = ['All', 'Last year', 'Last 90 Days', 'Last 30 Days', 'Last Week', 'Custom' ]
+DateSelectOptions = Literal['All', 'Last year', 'Last 90 Days', 'Last 30 Days', 'Last Week', 'Specific Year', 'Custom']
+DATE_SELECT_DEFAULT: list[DateSelectOptions] = ['All', 'Last year', 'Last 90 Days', 'Last 30 Days', 'Last Week', 'Specific Year', 'Custom' ]
 
 def df_date_filter(df: pd.DataFrame, key: str, from_now: bool = False,
     options: list[DateSelectOptions] = DATE_SELECT_DEFAULT, default: DateSelectOptions|None = None,
@@ -120,10 +120,15 @@ def df_date_filter(df: pd.DataFrame, key: str, from_now: bool = False,
         start = end - pd.DateOffset(days=30)
     elif selection == 'Last Week':
         start = end - pd.DateOffset(weeks=1)
+    elif selection == 'Specific Year':
+        year = st.selectbox('Year', df['date'].dt.year.unique(), key=key_combine(key, 'df_date_filter_year'))
+        start = pd.Timestamp(year, 1, 1)
+        end = pd.Timestamp(year, 12, 31)
+
     elif selection == 'Custom':
         start = end - pd.DateOffset(days=30)
         result = date_range_picker('Select the date range', default_start=start, default_end=end,
-            max_date=pd.Timestamp.now(), key=key_combine(key, 'date_range'))
+            max_date=pd.Timestamp.now(), key=key_combine(key, 'df_date_filter_custom'))
         start = pd.to_datetime(result[0]) # type: ignore
         end = pd.to_datetime(result[1]) # type: ignore
     else:

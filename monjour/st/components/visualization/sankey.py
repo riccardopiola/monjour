@@ -12,7 +12,7 @@ def common_df(st_app: StApp):
     return df
 
 
-def sankey_diagram(df: pd.DataFrame):
+def links_df(df: pd.DataFrame):
     df = df.copy()
     expenses = df[df['expense']]
     income = df[~df['expense']]
@@ -22,6 +22,8 @@ def sankey_diagram(df: pd.DataFrame):
     total_expenses = expenses['amount'].sum()
     income['proportion'] = income['amount'] / total_income
     expenses['proportion'] = expenses['amount'] / total_expenses
+
+
 
     # Create all source-target pairs with proportional flows
     links = []
@@ -35,9 +37,16 @@ def sankey_diagram(df: pd.DataFrame):
 
     # Convert links to DataFrame
     links_df = pd.DataFrame(links)
-    draw_sankey_diagram(links_df, 'source', 'target', 'value', 'Income vs Expenses by Category')
+    return links_df
+    # draw_sankey(links_df, 'source', 'target', 'value', 'Income vs Expenses by Category')
 
-def draw_sankey_diagram(df: pd.DataFrame, source_col: str, target_col: str, value_col: str, title: str):
+def draw_sankey(
+    df: pd.DataFrame,
+    title: str,
+    source_col: str = 'source',
+    target_col: str = 'target',
+    value_col: str = 'value',
+):
     """
     Given a dataframe with source, target, and value columns, draw a Sankey diagram.
 
@@ -58,18 +67,23 @@ def draw_sankey_diagram(df: pd.DataFrame, source_col: str, target_col: str, valu
 
     # Create the Sankey diagram
     fig = go.Figure(go.Sankey(
-        node=dict(
-            pad=15,
-            thickness=20,
-            line=dict(color="black", width=0.5),
-            label=all_nodes
-        ),
-        link=dict(
-            source=df['source_index'],
-            target=df['target_index'],
-            value=df[value_col]
-        )
+        node={
+            'pad': 15,
+            'thickness': 20,
+            'line': {'color': "black", 'width': 0.5},
+            'label': all_nodes
+        },
+        link={
+            'source': df['source_index'],
+            'target': df['target_index'],
+            'value': df[value_col]
+        }
     ))
+
+    fig.update_layout(
+        title_text=title,
+        font_size=10
+    )
 
     fig.update_layout(title=title)
     return fig

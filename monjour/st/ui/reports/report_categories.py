@@ -9,7 +9,7 @@ from monjour.st.utils import key_combine
 
 from monjour.st.components.common.df_explorer import df_date_filter
 from monjour.st.components.visualization import income_expenses
-from monjour.st.components.visualization.sankey import sankey_diagram
+from monjour.st.components.visualization import sankey2
 
 st_app = get_st_app(st.session_state.project_dir)
 
@@ -17,50 +17,84 @@ st.title("Categories Report")
 df = df_date_filter(st_app.app.df, key=__name__)
 df = df.copy()
 
-# week_month: Any = st.segmented_control('Divide by', ['Week', 'Month', 'Day'],
-#                     key=key_combine(__name__, 'week_month'), default='Month')
-
-
 # TODO: Remove this hack and implement it with an importer
 df['category'] = df['category'].str.replace('.', '/')
-df['expense'] = df['amount'] < 0
-df['amount_abs'] = df['amount'].abs()
-
-expenses = df[df['expense']]
-income = df[~df['expense']]
 
 # Aggregate total expenses by category
 category_data = (
-    expenses.groupby('category')
-    .agg({ 'category': 'count', 'amount_abs': 'sum' })
+    df.groupby('category')
+    .agg({ 'category': 'count', 'amount': 'sum' })
     .rename(columns={'category': 'count'})
-    .sort_values('amount_abs', ascending=False)
     .reset_index()
 )
 category_data['enable'] = True
-category_data['category'] = category_data['category'].str.split('/').str[1:].str.join('/')
+category_data['expense'] = category_data['category'].str.startswith('Expense')
+category_data['amount_abs'] = category_data['amount'].abs()
+category_data = category_data.sort_values('amount_abs', ascending=False)
 
-st.subheader("Expenses")
-category_data = st.data_editor(category_data, use_container_width=True, hide_index=True, column_config={
+# Eliminate the first level of the category hierarchy for better visualization
+category_data['category_flat'] = category_data['category'].str.split('/').str[1:].str.join('/')
+
+expenses = category_data[category_data['expense']]
+income = category_data[~category_data['expense']]
+
+##############################################
+# Tables
+##############################################
+
+column_order=['enable', 'category_flat', 'count', 'amount_abs']
+column_config = {
     'amount_abs': st.column_config.NumberColumn(label="Total", format='%.2f', disabled=True),
-    'category': st.column_config.TextColumn(label="Expense Category", disabled=True),
-    'count': st.column_config.NumberColumn(label="# transactions", disabled=True),
-    'enable': st.column_config.CheckboxColumn(label="Enable", width='small')
-}, key=key_combine(__name__, 'category_selector'), column_order=['enable', 'category', 'count', 'amount_abs'])
+    'category_flat': st.column_config.TextColumn(label="Expense Category", disabled=True),
+    'count': st.column_config.NumberColumn(label="#", disabled=True),
+    'enable': st.column_config.CheckboxColumn(label="Enable", width='small'),
+}
 
-category_data = category_data[category_data['enable']]
+c1, c2 = st.columns(2)
+with c1:
+    st.subheader("Income Categories")
+    income_filter = st.data_editor(income, use_container_width=True, hide_index=True, column_config=column_config,
+        key=key_combine(__name__, 'income_selector'), column_order=column_order)
+
+with c2:
+    st.subheader("Expense Categories")
+    expense_filter = st.data_editor(expenses, use_container_width=True, hide_index=True, column_config=column_config,
+        key=key_combine(__name__, 'expense_selector'), column_order=column_order)
+
+# Filter the data based on the user selection
+enabled_income = income[income_filter['enable']]
+enabled_expenses = expenses[expense_filter['enable']]
+
+##############################################
+# Sunburst charts
+##############################################
 
 # A sunburst chart is like a pie chart but with multiple levels
-fig = px.sunburst(
-    category_data,
-    path=['category'],  # Define the hierarchy
-    values='amount_abs',
-    title='Expense Distribution by Category',
-    template='plotly_white'
-)
+c1, c2 = st.columns(2)
+with c1:
+    fig = px.sunburst(
+        enabled_income,
+        path=['category_flat'],  # Define the hierarchy
+        values='amount_abs',
+        title='Income Distribution by Category',
+        template='plotly_white'
+    )
+    st.plotly_chart(fig, use_container_width=True, height=600)
+with c2:
+    fig = px.sunburst(
+        enabled_expenses,
+        path=['category_flat'],  # Define the hierarchy
+        values='amount_abs',
+        title='Expense Distribution by Category',
+        template='plotly_white'
+    )
+    st.plotly_chart(fig, use_container_width=True, height=600)
 
-st.plotly_chart(fig, use_container_width=True, height=600)
+##############################################
+# Sankey diagram
+##############################################
 
 # Draw the Sankey diagram
-sankey_diagram(df)
-st.plotly_chart(sankey_diagram(df), use_container_width=True, height=600)
+fig = sankey2.sankey(income, expenses)
+st.plotly_chart(fig, use_container_width=True, height=600)
+

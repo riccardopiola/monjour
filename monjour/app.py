@@ -1,6 +1,8 @@
+import os
+import json
 from pathlib import Path
 import pandas as pd
-from typing import IO, Callable
+from typing import IO, Any, Callable
 
 from monjour.core.executor import Executor
 from monjour.core.log import MjLogger
@@ -23,6 +25,8 @@ class App:
     df: pd.DataFrame # Master account
     df_listeners: list[Callable[[pd.DataFrame], None]] = []
 
+    cli_args: dict[str, Any]
+
     ##############################################
     # Configuration
     ##############################################
@@ -34,6 +38,7 @@ class App:
         self.categories = {}
         self.df = pd.DataFrame()
         self.df_listeners = []
+        self.cli_args = json.loads(os.environ.get('MONJOUR_APP_ARGS', '{}'))
 
     def define_accounts(self, *accounts: Account):
         for account in accounts:

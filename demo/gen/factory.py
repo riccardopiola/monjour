@@ -45,7 +45,7 @@ class Factory:
         return Transaction(
             account_id=BANK,
             date=date,
-            amount=amount,
+            amount=-amount,
             currency=self.life.currency,
             desc='Public Transport',
             counterpart=self.life.location + ' Transport Company',

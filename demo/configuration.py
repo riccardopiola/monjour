@@ -5,11 +5,14 @@ from monjour.prelude import *
 from monjour.providers.generic import BankAccount
 from monjour.providers.generic.importers.csv_importer import CSVImporter
 
+from demo_app import DemoApp
+
 ##############################################
 # General configuration
 ##############################################
 
-app = App(
+# These should match what is defined in demo.gen.__main__.py
+app = DemoApp(
     Config(
         name="John",
         surname="Doe",
