@@ -15,7 +15,7 @@ st_lib_home = Path(os.path.dirname(__file__))
 # App setup
 ######################################
 
-st.session_state.project_dir = os.path.curdir
+st.session_state.project_dir = os.path.realpath(os.path.curdir)
 st_app = get_st_app(st.session_state.project_dir)
 
 # Will only run if the app is dirty
@@ -56,10 +56,10 @@ user_pages = st_app.find_custom_st_pages()
 ######################################
 
 pg = st.navigation({
-    **({} if len(debug) == 0 else { 'Debug': debug }),
+    **({} if len(debug) == 0 else { 'DEBUG': debug }),
     'GENERAL': general,
     'REPORTS': reports,
-    **({} if len(user_pages) == 0 else { 'Custom Pages': user_pages })
+    **({} if len(user_pages) == 0 else { 'PAGES': user_pages })
 })
 
 pg.run()
