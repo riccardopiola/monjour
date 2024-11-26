@@ -3,9 +3,10 @@ In this file we define the configuration of the application.
 """
 from monjour.prelude import *
 from monjour.providers.generic import BankAccount
-from monjour.providers.generic.importers.csv_importer import CSVImporter
+from monjour.providers.generic.importers import CSVImporter
 
-from demo_app import DemoApp
+from app.demo_app import DemoApp
+from app.demo_importer import DemoImporter
 
 ##############################################
 # General configuration
@@ -33,12 +34,12 @@ app.define_accounts(
         name='Checking account',
         iban='IT00X0000000000000000000000',
         card_last_4_digits='1234',
-        importer=CSVImporter()
+        importer=DemoImporter()
     ),
     Account(
         id='paypal',
         name='Paypal Account',
-        importer=CSVImporter()
+        importer=DemoImporter()
     ),
 )
 

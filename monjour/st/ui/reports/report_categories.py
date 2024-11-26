@@ -17,9 +17,6 @@ st.title("Categories Report")
 df = df_date_filter(st_app.app.df, key=__name__)
 df = df.copy()
 
-# TODO: Remove this hack and implement it with an importer
-df['category'] = df['category'].str.replace('.', '/')
-
 # Aggregate total expenses by category
 category_data = (
     df.groupby('category')

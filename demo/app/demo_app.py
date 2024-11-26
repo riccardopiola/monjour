@@ -1,6 +1,4 @@
 import sys
-import os
-import subprocess
 from pathlib import Path
 
 from monjour import *
@@ -9,7 +7,7 @@ from monjour.core.log import MjLogger
 
 log = MjLogger(__name__)
 
-PROJECT_DIR = Path(__file__).parent
+PROJECT_DIR = Path(__file__).parent.parent
 GEN_DIR = PROJECT_DIR / 'gen'
 
 class DemoApp(App):

@@ -63,8 +63,8 @@ class ImportContext(DiagnosticCollector):
 
     def copy(self):
         """
-        Performs a shallow copy the immutable fields and a deep copy of the mutable fields
-        for the benefit of DebugExecutor.
+        Performs a shallow copy the immutable fields and a deep copy of the mutable fields.
+        Used by RecordingExecutor.
         """
         return ImportContext(
             self.account,

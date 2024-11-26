@@ -43,6 +43,8 @@ def cast_columns(column_dtypes: dict[str, Any], fill_unavailable_cols: bool = Tr
         return df
     return Transformer(transformer, 'csv_importer.cast_columns', column_dtypes=column_dtypes, fill_unavailable_cols=fill_unavailable_cols)
 
+cast_columns_standard_format = cast_columns(Transaction.to_pd_dtype_dict())
+
 @transformer()
 def remove_useless_columns(ctx: ImportContext, df: pd.DataFrame) -> pd.DataFrame:
     """
