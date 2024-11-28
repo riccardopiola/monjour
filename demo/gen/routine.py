@@ -133,7 +133,7 @@ class Routine(ABC):
         """
         print("{} - {} - Generating period".format(start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d')))
 
-        # Fill in the starting days of the week
+        # Fill in any days before the first day of a new week
         while self.today.weekday() != 0:
             self.gen_day()
 
@@ -141,7 +141,7 @@ class Routine(ABC):
         while self.today <= (end - timedelta(days=7)):
             self.gen_week()
 
-        # Fill in the ending days of the week
+        # Fill in the ending days of the period
         while self.today != end:
             self.gen_day()
 

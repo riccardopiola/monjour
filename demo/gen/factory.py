@@ -165,6 +165,20 @@ class Factory:
     def phone_subscription(self, date: datetime, amount: float) -> Transaction:
         return self._make_subscription(date, 'Phone', amount, Expenses.Bills)
 
+    def interest(self, date: datetime, amount: float) -> Transaction:
+        return Transaction(
+            account_id=BANK,
+            date=date,
+            amount=amount,
+            currency=self.life.currency,
+            desc='Interest',
+            counterpart=None,
+            location=None,
+            payment_type=PaymentType.Transfer,
+            ref=None,
+            category=Income.Interest
+        )
+
 class RoutineFactory(Factory):
     life: RoutineLife
 

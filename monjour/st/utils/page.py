@@ -9,7 +9,6 @@ class StateManager:
     pages: dict[str, set[str]]
 
     def __init__(self):
-        print("Created StateManager")
         self.pages = dict()
 
     def register(self, page: str, key: str) -> str:

@@ -62,10 +62,10 @@ class RoutineLife(Life):
         self.gym_name = f'{faker.company()} Gym'
 
     def restaurant_name(self):
-        return randlist(self._preferred_restaurants) if random() < 0.7 else super().restaurant_name()
+        return randlist(self._preferred_restaurants) if random() < 0.3 else super().restaurant_name()
 
     def supermaket_name(self):
-        return randlist(self._preferred_supermaket) if random() < 0.7 else super().supermaket_name()
+        return randlist(self._preferred_supermaket) if random() < 0.9 else super().supermaket_name()
 
 @dataclass
 class RentLife(RoutineLife):

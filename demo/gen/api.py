@@ -13,7 +13,8 @@ class Income(Enum):
     # Income
     Salary      = 'Income/Salary'
     Gift        = 'Income/Gift'
-    Other       = 'Income/Other'
+    Other       = 'Income/Other',
+    Interest    = 'Income/Interest'
 
 @_enum_str
 class Expenses(Enum):

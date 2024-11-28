@@ -50,6 +50,7 @@ app.define_accounts(
 app.define_categories(
     Category('Income/Salary',           '💰'),
     Category('Income/Gift',             '🎁'),
+    Category('Income/Interest',         '💰'),
     Category('Income/Other',            '💸'),
 
     Category('Expense/Food',            '🍔'),
