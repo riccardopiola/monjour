@@ -1,26 +1,7 @@
-from typing import Mapping
 from dataclasses import fields, field, dataclass
-from gen.events import Event
 
-from gen.common import *
-
-class Weights:
-    map: Mapping[str, Event]
-
-    def __init__(self, map: Mapping[str, Event]):
-        self.map = map
-
-    # Allow to create a copy of weights with syntax weights[['key1', 'key2']]
-    def __getitem__(self, keys):
-        return Weights({ k: v for k, v in self.map.items() if k in keys })
-
-    # Allow to create a copy of weights with syntax weights + other_weights
-    def __add__(self, other: Self|Mapping[str, Event]):
-        if isinstance(other, Mapping):
-            return Weights({ **self.map, **other })
-        elif isinstance(other, Weights):
-            return Weights({ **self.map, **other.map })
-        raise ValueError('Invalid type')
+from .common import *
+from .events import Weights
 
 @dataclass
 class Life:

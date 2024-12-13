@@ -1,3 +1,4 @@
 
 def main():
-    import gen.__main__
+    from .person_doe import main
+    main()

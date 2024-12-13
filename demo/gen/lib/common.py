@@ -5,7 +5,7 @@ from random import random, randrange, randint
 from typing import Callable
 import statistics
 
-from gen.api import *
+from .api import Transaction, PaymentType, Expenses, Income
 
 PAYPAL = 'paypal'
 BANK = 'bank'

@@ -2,10 +2,10 @@ from abc import ABC, abstractmethod
 import random as random_module
 from functools import partial
 
-from gen.common import *
-from gen.factory import Weights, Factory
-from gen.life import Life
-from gen.events import Event, RoutineEvent, MonthlyFixture
+from .common import *
+from .factory import Factory
+from .life import Life
+from .events import Event, Event, FixedDayEvent
 
 class Routine(ABC):
     # Start(Included), End (Not included)
@@ -31,9 +31,9 @@ class Routine(ABC):
         self._update_events()
 
     def _update_events(self):
-        for event_name, event in self.life.weights.map.items():
+        for event_name, event in self.life.weights.events.items():
             factory_func: Callable[[datetime, float], Transaction] = getattr(self.factory, event_name)
-            if isinstance(event, RoutineEvent):
+            if isinstance(event, Event):
                 if event.occurrance == 'daily':
                     self._daily_events.append(partial(self._run_daily_event, event, factory_func))
                 elif event.occurrance == 'weekly':
@@ -43,15 +43,15 @@ class Routine(ABC):
             elif isinstance(event, MonthlyFixture):
                 self._monthly_events.append(partial(self._run_monthly_fixture, event, factory_func))
 
-    def _run_daily_event(self, event: RoutineEvent, fn: Callable[[datetime, float], Transaction]):
+    def _run_daily_event(self, event: Event, fn: Callable[[datetime, float], Transaction]):
         if random_module.random() < event.probability:
             self.trn += fn(self.today, event.amount)
 
-    def _run_weekly_event(self, event: RoutineEvent, fn: Callable[[datetime, float], Transaction]):
+    def _run_weekly_event(self, event: Event, fn: Callable[[datetime, float], Transaction]):
         if random_module.random() < event.probability:
             self.trn += fn(random_date(*self.this_week_daterange()), event.amount)
 
-    def _run_monthly_event(self, event: RoutineEvent, fn: Callable[[datetime, float], Transaction]):
+    def _run_monthly_event(self, event: Event, fn: Callable[[datetime, float], Transaction]):
         if random_module.random() < event.probability:
             self.trn += fn(random_date(*self.this_month_daterange()), event.amount)
 
